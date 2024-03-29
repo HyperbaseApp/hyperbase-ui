@@ -1,7 +1,19 @@
+import type { Admin } from '$lib/types/admin';
+import type { AuthTokenData } from '$lib/types/authTokenData';
+import type { Collection } from '$lib/types/collection';
+import type { Project } from '$lib/types/project';
+import { jwtDecode } from 'jwt-decode';
+import { writable } from 'svelte/store';
+
 export default class Hyperbase {
 	#_baseUrl: string;
 	#_baseWsUrl?: string;
 	#_authToken?: string;
+
+	#_admin = writable<Admin | undefined>();
+
+	#_authState = writable(AuthState.Unauthenticated);
+	#_isReady = writable(false);
 
 	get baseUrl() {
 		return this.#_baseUrl;
@@ -15,22 +27,44 @@ export default class Hyperbase {
 		return this.#_authToken;
 	}
 
+	get admin() {
+		return this.#_admin;
+	}
+
+	get authState() {
+		return this.#_authState;
+	}
+
+	get isReady() {
+		return this.#_isReady;
+	}
+
 	constructor(base_url: string, base_ws_url?: string) {
 		this.#_baseUrl = base_url;
 		this.#_baseWsUrl = base_ws_url;
 	}
 
-	async setAuthToken(authToken: string) {
-		const res = await this.#api('/auth/token', {
-			method: 'GET',
-			headers: {
-				authorization: `Bearer ${authToken}`
+	async init() {
+		const token = localStorage.getItem('token');
+		if (token) {
+			const loadToken = await this.#setAuthToken(token);
+			if (loadToken) {
+				this.#setTokenStorage(loadToken);
+				this.#_authToken = loadToken;
+				this.#_authState.set(AuthState.Authenticated);
+				this.#_isReady.set(true);
+
+				const decodedJwt = jwtDecode<AuthTokenData>(loadToken);
+				if (decodedJwt.kind === 'Admin') {
+					this.#getAdminData();
+				}
+
+				return;
 			}
-		});
-
-		this.#_authToken = res.data.token;
-
-		return this.#_authToken;
+		}
+		this.#removeTokenStorage();
+		this.#_authState.set(AuthState.Unauthenticated);
+		this.#_isReady.set(true);
 	}
 
 	async adminSignUp(email: string, password: string) {
@@ -73,9 +107,41 @@ export default class Hyperbase {
 			}
 		});
 
+		this.#setTokenStorage(res.data.token);
 		this.#_authToken = res.data.token;
+		this.#_authState.set(AuthState.Authenticated);
+
+		this.#getAdminData();
 
 		return this.#_authToken;
+	}
+
+	async adminRequestPasswordReset(email: string) {
+		const res = await this.#api(`/auth/request-password-reset`, {
+			method: 'POST',
+			body: JSON.stringify({
+				email
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+
+		return res.data.id;
+	}
+
+	async adminConfirmPasswordReset(id: string, code: string, password: string) {
+		await this.#api(`/auth/confirm-password-reset`, {
+			method: 'POST',
+			body: JSON.stringify({
+				id,
+				code,
+				password
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
 	}
 
 	async userSignIn(tokenId: string, token: string, collectionId: string, data: any) {
@@ -92,31 +158,110 @@ export default class Hyperbase {
 			}
 		});
 
+		this.#setTokenStorage(res.data.token);
 		this.#_authToken = res.data.token;
+		this.#_authState.set(AuthState.Authenticated);
 
 		return this.#_authToken;
 	}
 
-	async getAdminData() {
-		const admin = await this.#api(`/admin`, {
-			method: 'GET',
-			headers: {
-				authorization: `Bearer ${this.#_authToken}`
-			}
-		});
-
-		return admin.data;
+	signOut() {
+		this.#removeTokenStorage();
+		this.#_admin.set(undefined);
+		this.#_authToken = undefined;
+		this.#_authState.set(AuthState.Unauthenticated);
 	}
 
 	async getUserData() {
-		const user = await this.#api(`/user`, {
+		const res = await this.#api(`/user`, {
 			method: 'GET',
 			headers: {
 				authorization: `Bearer ${this.#_authToken}`
 			}
 		});
 
-		return user.data;
+		return res.data;
+	}
+
+	async createProject(name: string) {
+		const res = await this.#api('/project', {
+			method: 'POST',
+			body: JSON.stringify({
+				name
+			}),
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${this.#_authToken}`
+			}
+		});
+
+		return res.data;
+	}
+
+	async getProject(id: string) {
+		const res = await this.#api(`/project/${id}`, {
+			method: 'GET',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${this.#_authToken}`
+			}
+		});
+
+		return new HyperbaseProject(this, res.data);
+	}
+
+	async getAllProjects() {
+		const res = await this.#api('/projects', {
+			method: 'GET',
+			headers: {
+				authorization: `Bearer ${this.#_authToken}`
+			}
+		});
+
+		return res.data;
+	}
+
+	async getAllSupportedSchemaFields() {
+		const res = await this.#api('/info/schema_fields', {
+			method: 'GET'
+		});
+
+		return res.data;
+	}
+
+	async #getAdminData() {
+		const res = await this.#api(`/admin`, {
+			method: 'GET',
+			headers: {
+				authorization: `Bearer ${this.#_authToken}`
+			}
+		});
+
+		this.#_admin.set(res.data);
+
+		return res.data;
+	}
+
+	async #setAuthToken(authToken: string) {
+		const res = await this.#api('/auth/token', {
+			method: 'GET',
+			headers: {
+				authorization: `Bearer ${authToken}`
+			}
+		});
+
+		this.#_authToken = res.data.token;
+		this.#_authState.set(AuthState.Authenticated);
+
+		return this.#_authToken;
+	}
+
+	async #setTokenStorage(authToken: string) {
+		localStorage.setItem('token', authToken);
+	}
+
+	async #removeTokenStorage() {
+		localStorage.removeItem('token');
 	}
 
 	async #api(input: string, init: RequestInit) {
@@ -132,32 +277,80 @@ export default class Hyperbase {
 	}
 }
 
-class HyperbaseProject {
+export class HyperbaseProject {
 	#_hyperbase: Hyperbase;
-	#_projectId: string;
+	#_data: Project;
 
 	get hyperbase() {
 		return this.#_hyperbase;
 	}
 
-	get projectId() {
-		return this.#_projectId;
+	get data() {
+		return this.#_data;
 	}
 
-	constructor(hyperbase: Hyperbase, projectId: string) {
+	constructor(hyperbase: Hyperbase, project: Project) {
 		this.#_hyperbase = hyperbase;
-		this.#_projectId = projectId;
+		this.#_data = project;
 	}
 
-	async setCollection(collectionId: string) {
-		this.#api(`/${this.#_projectId}/collection/${collectionId}`, {
-			method: 'GET',
+	async update(name: string) {
+		this.#api(`/${this.#_data.id}`, {
+			method: 'PATCH',
+			body: JSON.stringify({
+				name
+			}),
 			headers: {
-				authorization: `Bearer ${this.#_hyperbase.authToken}`
+				'content-type': 'application/json'
+			}
+		});
+	}
+
+	async delete() {
+		this.#api(`/${this.#_data.id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async getCollection(id: string) {
+		const res = await this.#api(`/${this.#_data.id}/collection/${id}`, {
+			method: 'GET'
+		});
+
+		return new HyperbaseCollection(this, res.data);
+	}
+
+	async createCollection(data: {
+		name: string;
+		schemaFields: {
+			[field: string]: {
+				kind: string;
+				required?: boolean;
+				indexed?: boolean;
+				auth_column?: boolean;
+			};
+		};
+	}) {
+		const res = await this.#api('/collection', {
+			method: 'POST',
+			body: JSON.stringify({
+				name: data.name,
+				schema_fields: data.schemaFields
+			}),
+			headers: {
+				'content-type': 'application/json'
 			}
 		});
 
-		return new HyperbaseCollection(this, collectionId);
+		return res.data;
+	}
+
+	async getAllCollections() {
+		const res = await this.#api(`/${this.#_data.id}/collections`, {
+			method: 'GET'
+		});
+
+		return res.data;
 	}
 
 	async #api(input: string, init: RequestInit) {
@@ -165,7 +358,13 @@ class HyperbaseProject {
 		if (input.startsWith('/')) {
 			input = input.slice(1);
 		}
-		const res = await fetch(`${this.#_hyperbase.baseUrl}/api/rest/project/${input}`, init);
+		const res = await fetch(`${this.#_hyperbase.baseUrl}/api/rest/project/${input}`, {
+			...init,
+			headers: {
+				...init.headers,
+				authorization: `Bearer ${this.#_hyperbase.authToken}`
+			}
+		});
 		const resJson = await res.json();
 		if (res.status.toString()[0] != '2') {
 			throw resJson.error;
@@ -174,20 +373,23 @@ class HyperbaseProject {
 	}
 }
 
-class HyperbaseCollection {
+export class HyperbaseCollection {
 	#_hyperbaseProject: HyperbaseProject;
-	#_collectionId: string;
+	#_data: Collection;
 	#_socket?: WebSocket;
 
-	constructor(hyperbaseProject: HyperbaseProject, collectionId: string) {
+	constructor(hyperbaseProject: HyperbaseProject, collection: Collection) {
 		this.#_hyperbaseProject = hyperbaseProject;
-		this.#_collectionId = collectionId;
+		this.#_data = collection;
 	}
 
 	async insertOne(object: any) {
 		const res = await this.#api(`/record`, {
 			method: 'POST',
-			body: JSON.stringify(object)
+			body: JSON.stringify(object),
+			headers: {
+				'content-type': 'application/json'
+			}
 		});
 
 		return res.data;
@@ -204,7 +406,10 @@ class HyperbaseCollection {
 	async updateOne(_id: string, object: any) {
 		const res = await this.#api(`/record/${_id}`, {
 			method: 'PATCH',
-			body: JSON.stringify(object)
+			body: JSON.stringify(object),
+			headers: {
+				'content-type': 'application/json'
+			}
 		});
 
 		return res.data;
@@ -237,7 +442,10 @@ class HyperbaseCollection {
 				groups,
 				orders,
 				limit
-			})
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
 		});
 
 		return res;
@@ -260,7 +468,7 @@ class HyperbaseCollection {
 		}
 
 		this.#_socket = new WebSocket(
-			`${this.#_hyperbaseProject.hyperbase.baseWsUrl}/api/rest/project/${this.#_hyperbaseProject.projectId}/collection/${this.#_collectionId}/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
+			`${this.#_hyperbaseProject.hyperbase.baseWsUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
 		);
 
 		if (onOpenCallback) {
@@ -296,12 +504,11 @@ class HyperbaseCollection {
 			input = input.slice(1);
 		}
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.projectId}/collection/${this.#_collectionId}/${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}/${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
-					'content-type': 'application/json',
 					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
 				}
 			}
@@ -312,6 +519,11 @@ class HyperbaseCollection {
 		}
 		return resJson;
 	}
+}
+
+export enum AuthState {
+	Unauthenticated,
+	Authenticated
 }
 
 interface CollectionFilter {
