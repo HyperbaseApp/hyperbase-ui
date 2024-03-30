@@ -48,7 +48,7 @@
 	<title>Hyperbase UI</title>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col">
+<div class="h-screen flex flex-col">
 	{#if isShown}
 		{#if !insideAuthPath}
 			<div class="p-2 flex items-center gap-x-2">

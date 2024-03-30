@@ -265,10 +265,7 @@ export default class Hyperbase {
 	}
 
 	async #api(input: string, init: RequestInit) {
-		if (input.startsWith('/')) {
-			input = input.slice(1);
-		}
-		const res = await fetch(`${this.#_baseUrl}/api/rest/${input}`, init);
+		const res = await fetch(`${this.#_baseUrl}/api/rest${input}`, init);
 		const resJson = await res.json();
 		if (res.status.toString()[0] != '2') {
 			throw resJson.error;
@@ -295,7 +292,7 @@ export class HyperbaseProject {
 	}
 
 	async update(name: string) {
-		this.#api(`/${this.#_data.id}`, {
+		await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name
@@ -307,13 +304,13 @@ export class HyperbaseProject {
 	}
 
 	async delete() {
-		this.#api(`/${this.#_data.id}`, {
+		await this.#api('', {
 			method: 'DELETE'
 		});
 	}
 
 	async getCollection(id: string) {
-		const res = await this.#api(`/${this.#_data.id}/collection/${id}`, {
+		const res = await this.#api(`/collection/${id}`, {
 			method: 'GET'
 		});
 
@@ -331,7 +328,7 @@ export class HyperbaseProject {
 			};
 		};
 	}) {
-		const res = await this.#api('/collection', {
+		const res = await this.#api(`/collection`, {
 			method: 'POST',
 			body: JSON.stringify({
 				name: data.name,
@@ -346,7 +343,7 @@ export class HyperbaseProject {
 	}
 
 	async getAllCollections() {
-		const res = await this.#api(`/${this.#_data.id}/collections`, {
+		const res = await this.#api(`/collections`, {
 			method: 'GET'
 		});
 
@@ -354,17 +351,16 @@ export class HyperbaseProject {
 	}
 
 	async #api(input: string, init: RequestInit) {
-		this.#_hyperbase;
-		if (input.startsWith('/')) {
-			input = input.slice(1);
-		}
-		const res = await fetch(`${this.#_hyperbase.baseUrl}/api/rest/project/${input}`, {
-			...init,
-			headers: {
-				...init.headers,
-				authorization: `Bearer ${this.#_hyperbase.authToken}`
+		const res = await fetch(
+			`${this.#_hyperbase.baseUrl}/api/rest/project/${this.#_data.id}${input}`,
+			{
+				...init,
+				headers: {
+					...init.headers,
+					authorization: `Bearer ${this.#_hyperbase.authToken}`
+				}
 			}
-		});
+		);
 		const resJson = await res.json();
 		if (res.status.toString()[0] != '2') {
 			throw resJson.error;
@@ -378,9 +374,42 @@ export class HyperbaseCollection {
 	#_data: Collection;
 	#_socket?: WebSocket;
 
+	get data() {
+		return this.#_data;
+	}
+
 	constructor(hyperbaseProject: HyperbaseProject, collection: Collection) {
 		this.#_hyperbaseProject = hyperbaseProject;
 		this.#_data = collection;
+	}
+
+	async update(data: {
+		name: string;
+		schemaFields: {
+			[field: string]: {
+				kind: string;
+				required?: boolean;
+				indexed?: boolean;
+				auth_column?: boolean;
+			};
+		};
+	}) {
+		await this.#api('', {
+			method: 'PATCH',
+			body: JSON.stringify({
+				name: data.name,
+				schema_fields: data.schemaFields
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+	}
+
+	async delete() {
+		await this.#api('', {
+			method: 'DELETE'
+		});
 	}
 
 	async insertOne(object: any) {
@@ -500,11 +529,8 @@ export class HyperbaseCollection {
 	}
 
 	async #api(input: string, init: RequestInit) {
-		if (input.startsWith('/')) {
-			input = input.slice(1);
-		}
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}/${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}${input}`,
 			{
 				...init,
 				headers: {

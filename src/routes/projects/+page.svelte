@@ -29,7 +29,13 @@
 		try {
 			isLoading = true;
 
-			projects = await hyperbase.getAllProjects();
+			const projectsData: Project[] = await hyperbase.getAllProjects();
+			projectsData.sort((a, b) => {
+				const lowerA = a.name.toLocaleLowerCase();
+				const lowerB = b.name.toLocaleLowerCase();
+				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
+			});
+			projects = projectsData;
 		} catch (err) {
 			errorHandler(err);
 		} finally {
@@ -119,7 +125,7 @@
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
-		on:click={() => (showModalAddProject = false)}
+		on:click|stopPropagation={() => (showModalAddProject = false)}
 		class="fixed w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 	>
 		<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -140,7 +146,7 @@
 						<Button
 							type="button"
 							kind="secondary"
-							loading={isLoading}
+							disable={isLoading}
 							height="h-10"
 							on:click={(e) => {
 								e.stopPropagation();

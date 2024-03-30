@@ -1,0 +1,35 @@
+<script lang="ts">
+	let className: string | undefined = undefined;
+
+	export { className as class };
+</script>
+
+<svg xmlns="http://www.w3.org/2000/svg" class={className} viewBox="0 0 512 512">
+	<circle
+		cx="256"
+		cy="256"
+		r="32"
+		fill="none"
+		stroke="currentColor"
+		stroke-miterlimit="10"
+		stroke-width="32"
+	/>
+	<circle
+		cx="416"
+		cy="256"
+		r="32"
+		fill="none"
+		stroke="currentColor"
+		stroke-miterlimit="10"
+		stroke-width="32"
+	/>
+	<circle
+		cx="96"
+		cy="256"
+		r="32"
+		fill="none"
+		stroke="currentColor"
+		stroke-miterlimit="10"
+		stroke-width="32"
+	/>
+</svg>

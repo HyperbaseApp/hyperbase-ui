@@ -29,6 +29,7 @@
 		title={inputTitle}
 		autocomplete={autocomplete ? 'on' : 'off'}
 		on:change={(e) => (value = e.currentTarget.value)}
+		{value}
 		class="block w-full pt-1 pb-2 px-4 bg-transparent text-sm outline-none"
 	/>
 </div>
