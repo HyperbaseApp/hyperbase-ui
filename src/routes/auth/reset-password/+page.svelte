@@ -5,6 +5,8 @@
 	import errorHandler from '$lib/utils/errorHandler';
 	import { getContext } from 'svelte';
 	import toast from 'svelte-french-toast';
+	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -36,6 +38,8 @@
 			await hyperbase.adminConfirmPasswordReset(reqPassResetId, code, newPassword);
 
 			toast.success('Successfully reset the password');
+
+			goto(`${base}/auth/signin`, { replaceState: true });
 		} catch (err) {
 			errorHandler(err);
 		} finally {

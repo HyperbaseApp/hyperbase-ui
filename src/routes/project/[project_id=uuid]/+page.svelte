@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { HyperbaseProject } from '$lib/hyperbase/hyperbase';
+	import type { HyperbaseCollection, HyperbaseProject } from '$lib/hyperbase/hyperbase';
 	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import type { Collection } from '$lib/types/collection';
+	import type { Collection, SchemaField, SchemaFieldKind } from '$lib/types/collection';
 	import { getContext, onMount } from 'svelte';
 	import toast from 'svelte-french-toast';
 	import { page } from '$app/stores';
@@ -20,17 +20,35 @@
 	import EllipsisHorizontal from '$lib/components/icon/EllipsisHorizontal.svelte';
 	import Create from '$lib/components/icon/Create.svelte';
 	import Loading from '$lib/components/icon/Loading.svelte';
+	import Save from '$lib/components/icon/Save.svelte';
+	import CloseCircle from '$lib/components/icon/CloseCircle.svelte';
+	import { convertTimestampToDatetimeLocal, formatSchemaFieldData } from '$lib/utils/converter';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
+	let hyperbaseCollection: HyperbaseCollection;
 
 	let collections: Collection[] = [];
+	let records: {
+		pagination: {
+			count: number;
+			total: number;
+		};
+		data: { [field: string]: any }[];
+	} = {
+		pagination: {
+			count: 0,
+			total: 0
+		},
+		data: []
+	};
 
 	let selectedCollection: Collection | undefined = undefined;
 	let collectionData: CollectionData = {
 		id: '',
 		name: '',
-		schemaFields: []
+		schemaFields: [],
+		optAuthColumnId: false
 	};
 	let supportedSchemaFields: string[];
 	let projectNameRemove = '';
@@ -39,10 +57,14 @@
 	let isInit = true;
 	let isLoadingEditProject = false;
 	let isLoadingRemoveProject = false;
-	let isLoadingRefreshCollection = false;
+	let isLoadingRefreshCollections = false;
+	let isLoadingRefreshRecords = false;
 	let isLoadingRefreshSelectedCollection = false;
 	let isLoadingAddEditCollection = false;
 	let isLoadingRemoveCollection = false;
+	let isLoadingAddRecord = false;
+	let isLoadingEditRecord = false;
+	let isLoadingRemoveRecord = false;
 	let showModalEditProject = {
 		id: '',
 		name: ''
@@ -67,6 +89,26 @@
 	} = {
 		idx: -1,
 		position: 'bottom'
+	};
+	let showRecordOpt: {
+		id: string;
+		action: 'none' | 'option' | 'remove' | 'edit';
+		optPosition: 'top' | 'bottom';
+		editData: {
+			[field: string]: any;
+		};
+	} = {
+		id: '',
+		action: 'none',
+		optPosition: 'top',
+		editData: {}
+	};
+	let showAddRecordData: {
+		show: boolean;
+		data: { [field: string]: any };
+	} = {
+		show: false,
+		data: {}
 	};
 
 	onMount(() => {
@@ -127,7 +169,7 @@
 
 	async function refreshCollections() {
 		try {
-			isLoadingRefreshCollection = true;
+			isLoadingRefreshCollections = true;
 
 			const collectionsData: Collection[] = await hyperbaseProject.getAllCollections();
 			collectionsData.sort((a, b) => {
@@ -139,7 +181,7 @@
 		} catch (err) {
 			errorHandler(err);
 		} finally {
-			isLoadingRefreshCollection = false;
+			isLoadingRefreshCollections = false;
 		}
 	}
 
@@ -164,6 +206,20 @@
 		}
 	}
 
+	function selectCollection(collection: Collection) {
+		showProjectOpt = false;
+		showCollectionOpt.id = '';
+		showRecordOpt.id = '';
+		showRecordOpt.action = 'none';
+		showAddRecordData = {
+			show: false,
+			data: {}
+		};
+
+		selectedCollection = collection;
+		refreshRecords();
+	}
+
 	async function refreshSelectedCollection() {
 		if (!selectedCollection?.id) return;
 
@@ -172,6 +228,7 @@
 
 			const hyperbaseCollection = await hyperbaseProject.getCollection(selectedCollection.id);
 			selectedCollection = hyperbaseCollection.data;
+			refreshRecords();
 		} catch (err) {
 			errorHandler(err);
 		} finally {
@@ -180,23 +237,16 @@
 	}
 
 	async function addCollection() {
-		let schemaFields: {
-			[field: string]: {
-				kind: string;
-				required?: boolean;
-				indexed?: boolean;
-				auth_column?: boolean;
-			};
-		} = {};
+		let schemaFields: SchemaField = {};
 		for (const field of collectionData.schemaFields) {
-			if (field._internal.name_invalid !== 'none') {
-				return;
-			}
+			if (field._internal.invalidName !== 'none') return;
+			if (field.kind === '') return;
 			schemaFields[field.name] = {
 				kind: field.kind,
 				required: field.required,
 				indexed: field.indexed,
-				auth_column: field.auth_column
+				unique: field.unique,
+				auth_column: field.authColumn
 			};
 		}
 
@@ -223,18 +273,20 @@
 				kind: string;
 				required?: boolean;
 				indexed?: boolean;
+				unique?: boolean;
 				auth_column?: boolean;
 			};
 		} = {};
 		for (const field of collectionData.schemaFields) {
-			if (field._internal.name_invalid !== 'none') {
+			if (field._internal.invalidName !== 'none') {
 				return;
 			}
 			schemaFields[field.name] = {
 				kind: field.kind,
 				required: field.required,
 				indexed: field.indexed,
-				auth_column: field.auth_column
+				unique: field.unique,
+				auth_column: field.authColumn
 			};
 		}
 
@@ -244,7 +296,8 @@
 			const hyperbaseCollection = await hyperbaseProject.getCollection(collectionData.id);
 			await hyperbaseCollection.update({
 				name: collectionData.name,
-				schemaFields
+				schemaFields,
+				optAuthColumnId: collectionData.optAuthColumnId
 			});
 			unshowModalCollection();
 			toast.success('Successfully updated the collection');
@@ -284,7 +337,8 @@
 		let editCollectionData: CollectionData = {
 			id: editCollection.id,
 			name: editCollection.name,
-			schemaFields: []
+			schemaFields: [],
+			optAuthColumnId: editCollection.opt_auth_column_id
 		};
 		for (const [field, props] of Object.entries(editCollection.schema_fields)) {
 			editCollectionData.schemaFields.push({
@@ -292,10 +346,11 @@
 				kind: props.kind,
 				required: props.required,
 				indexed: props.indexed,
-				auth_column: props.auth_column,
+				unique: props.unique,
+				authColumn: props.auth_column,
 				_internal: {
-					name_invalid: 'none',
-					kind_invalid: false
+					invalidName: 'none',
+					invalidKind: false
 				}
 			});
 		}
@@ -303,6 +358,7 @@
 		collectionData = editCollectionData;
 		showCollectionOpt.id = '';
 		showModalCollection = 'edit';
+		unshowAddRecord();
 	}
 
 	function addSchemaField() {
@@ -323,10 +379,11 @@
 				kind: '',
 				required: false,
 				indexed: false,
-				auth_column: false,
+				unique: false,
+				authColumn: false,
 				_internal: {
-					name_invalid: 'none',
-					kind_invalid: true
+					invalidName: 'none',
+					invalidKind: true
 				}
 			}
 		];
@@ -334,12 +391,12 @@
 
 	function validateSchemaField(idx: number) {
 		if (collectionData.schemaFields[idx].name.startsWith('_')) {
-			collectionData.schemaFields[idx]._internal.name_invalid = 'format';
+			collectionData.schemaFields[idx]._internal.invalidName = 'format';
 			return;
 		}
 		const lastChar = collectionData.schemaFields[idx].name.at(-1);
 		if (lastChar && !(lastChar === '_' || (lastChar >= 'a' && lastChar <= 'z'))) {
-			collectionData.schemaFields[idx]._internal.name_invalid = 'format';
+			collectionData.schemaFields[idx]._internal.invalidName = 'format';
 			return;
 		}
 		let isExist = false;
@@ -350,10 +407,10 @@
 			}
 		}
 		if (isExist) {
-			collectionData.schemaFields[idx]._internal.name_invalid = 'exists';
+			collectionData.schemaFields[idx]._internal.invalidName = 'exists';
 			return;
 		}
-		collectionData.schemaFields[idx]._internal.name_invalid = 'none';
+		collectionData.schemaFields[idx]._internal.invalidName = 'none';
 	}
 
 	function removeSchemaField(idx: number) {
@@ -366,7 +423,8 @@
 		collectionData = {
 			id: '',
 			name: '',
-			schemaFields: []
+			schemaFields: [],
+			optAuthColumnId: false
 		};
 		showSchemaFieldOpt.idx = -1;
 		showModalCollection = 'none';
@@ -380,11 +438,192 @@
 	) {
 		showSchemaFieldOpt.idx = showSchemaFieldOpt.idx === idx ? -1 : idx;
 		if (showSchemaFieldOpt.idx >= 0) {
-			if (e.clientY + 275 > document.documentElement.clientHeight) {
+			if (e.clientY + 300 > document.documentElement.clientHeight) {
 				showSchemaFieldOpt.position = 'top';
 			} else {
 				showSchemaFieldOpt.position = 'bottom';
 			}
+		}
+	}
+
+	async function refreshRecords() {
+		if (selectedCollection) {
+			(async () => {
+				try {
+					isLoadingRefreshRecords = true;
+
+					hyperbaseCollection = await hyperbaseProject.getCollection(selectedCollection.id);
+					const recordsData: {
+						pagination: {
+							count: number;
+							total: number;
+						};
+						data: {
+							[field: string]: any;
+						}[];
+					} = await hyperbaseCollection.findMany({
+						orders: [
+							{
+								field: '_id',
+								kind: 'desc'
+							}
+						]
+					});
+					for (const [field, props] of Object.entries(selectedCollection.schema_fields)) {
+						if (props.kind === 'timestamp') {
+							for (let i = 0; i < recordsData.data.length; ++i) {
+								recordsData.data[i][field] = convertTimestampToDatetimeLocal(
+									recordsData.data[i][field]
+								);
+							}
+						} else if (props.kind === 'json') {
+							for (let i = 0; i < recordsData.data.length; ++i) {
+								if (recordsData.data[i][field]) {
+									recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
+								}
+							}
+						}
+					}
+					records = recordsData;
+				} catch (err) {
+					errorHandler(err);
+				} finally {
+					isLoadingRefreshRecords = false;
+				}
+			})();
+		} else {
+			records = {
+				pagination: {
+					count: 0,
+					total: 0
+				},
+				data: []
+			};
+		}
+	}
+
+	function toggleShowRecordOpt(
+		e: MouseEvent & {
+			currentTarget: EventTarget & HTMLButtonElement;
+		},
+		record: {
+			[field: string]: any;
+		}
+	) {
+		showRecordOpt.id = showRecordOpt.id === record._id ? '' : record._id;
+		if (showRecordOpt.id.length > 0) {
+			showRecordOpt.action = 'option';
+			showRecordOpt.editData = record;
+			if (e.clientY + 125 > document.documentElement.clientHeight) {
+				showRecordOpt.optPosition = 'top';
+			} else {
+				showRecordOpt.optPosition = 'bottom';
+			}
+		} else {
+			showRecordOpt.action = 'none';
+			showRecordOpt.editData = {};
+		}
+	}
+
+	function toggleAddRecord() {
+		unshowRecordOpt();
+		if (showAddRecordData.show) {
+			unshowAddRecord();
+		} else {
+			showAddRecordData = {
+				show: true,
+				data: {}
+			};
+		}
+	}
+
+	function unshowAddRecord() {
+		showAddRecordData = {
+			show: false,
+			data: {}
+		};
+	}
+
+	function unshowRecordOpt() {
+		showRecordOpt = {
+			id: '',
+			action: 'none',
+			optPosition: 'top',
+			editData: {}
+		};
+	}
+
+	async function addRecord() {
+		try {
+			isLoadingAddRecord = true;
+
+			const { data, error } = formatSchemaFieldData(
+				showAddRecordData.data,
+				hyperbaseCollection.data.schema_fields
+			);
+			if (error) {
+				toast.error(error);
+				return;
+			}
+			if (!data) {
+				toast.error('Data is undefined');
+				return;
+			}
+			await hyperbaseCollection.insertOne(data);
+			unshowAddRecord();
+			toast.success('Successfully added a record');
+			refreshRecords();
+		} catch (err) {
+			errorHandler(err);
+		} finally {
+			isLoadingAddRecord = false;
+		}
+	}
+
+	async function editRecord() {
+		if (!selectedCollection) return;
+
+		try {
+			isLoadingEditRecord = true;
+
+			const editData = { ...showRecordOpt.editData };
+			delete editData['_id'];
+			const { data, error } = formatSchemaFieldData(
+				editData,
+				hyperbaseCollection.data.schema_fields
+			);
+			if (error) {
+				toast.error(error);
+				return;
+			}
+			if (!data) {
+				toast.error('Data is undefined');
+				return;
+			}
+			console.log(data);
+			await hyperbaseCollection.updateOne(showRecordOpt.id, data);
+			unshowRecordOpt();
+			toast.success('Successfully updated the record');
+			refreshRecords();
+		} catch (err) {
+			errorHandler(err);
+		} finally {
+			isLoadingEditRecord = false;
+		}
+	}
+
+	async function removeRecord() {
+		try {
+			isLoadingRemoveRecord = true;
+
+			await hyperbaseCollection.deleteOne(showRecordOpt.id);
+			unshowRecordOpt();
+			toast.success('Successfully removed the record');
+			refreshRecords();
+		} catch (err) {
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveRecord = false;
 		}
 	}
 
@@ -402,9 +641,30 @@
 			unshowModalRemoveProject();
 			return;
 		}
-		if (showCollectionOpt.id.length > 0) {
-			showCollectionOpt.id = '';
+		if (showModalRemoveCollection.id.length > 0) {
+			unshowModalRemoveCollection();
 			return;
+		}
+		{
+			let escaped = false;
+			if (showCollectionOpt.id.length > 0) {
+				showCollectionOpt.id = '';
+				escaped = true;
+			}
+			if (showRecordOpt.id.length > 0) {
+				showRecordOpt.id = '';
+				showRecordOpt.action = 'none';
+				escaped = true;
+			}
+			if (showAddRecordData.show) {
+				showAddRecordData = {
+					show: false,
+					data: {}
+				};
+			}
+			if (escaped) {
+				return;
+			}
 		}
 		selectedCollection = undefined;
 	}
@@ -414,15 +674,17 @@
 		name: string;
 		schemaFields: {
 			name: string;
-			kind: string;
+			kind: '' | SchemaFieldKind;
 			required: boolean;
 			indexed: boolean;
-			auth_column: boolean;
+			unique: boolean;
+			authColumn: boolean;
 			_internal: {
-				name_invalid: 'none' | 'exists' | 'format';
-				kind_invalid: boolean;
+				invalidName: 'none' | 'exists' | 'format';
+				invalidKind: boolean;
 			};
 		}[];
+		optAuthColumnId: boolean;
 	}
 </script>
 
@@ -441,7 +703,7 @@
 				<div class="px-2">
 					<div class="flex items-center justify-between gap-x-2">
 						<h1 class="font-bold">{hyperbaseProject.data.name}</h1>
-						<div class="relative">
+						<div class="py-1 relative flex items-center">
 							<button
 								type="button"
 								on:click|stopPropagation={() => (showProjectOpt = !showProjectOpt)}
@@ -449,7 +711,9 @@
 								<Settings class="w-5 h-5" />
 							</button>
 							{#if showProjectOpt}
-								<div class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm">
+								<div
+									class="p-2 absolute z-10 top-full right-0 border bg-white rounded-xl shadow-sm text-sm"
+								>
 									<button
 										type="button"
 										on:click|stopPropagation={() => {
@@ -490,8 +754,6 @@
 					</div>
 				</div>
 				<div class="my-2 border-b" />
-			{/if}
-			{#if !isLoadingRefreshCollection}
 				<div class="px-2 min-h-0 flex-1 flex flex-col">
 					<Button
 						type="button"
@@ -504,65 +766,71 @@
 					>
 						New Collection
 					</Button>
-					<div class="mt-2 min-h-0 flex-1 rounded overflow-hidden">
-						<div class="h-full overflow-y-auto">
-							{#each collections as collection}
-								<div class="relative">
-									<button
-										type="button"
-										on:click|stopPropagation={() => (selectedCollection = collection)}
-										title={collection.name}
-										class="w-full py-1 px-2 flex items-center justify-between {selectedCollection?.id ===
-										collection.id
-											? 'bg-neutral-200'
-											: 'hover:bg-neutral-100'} text-sm text-left rounded"
-									>
-										<span class="truncate">{collection.name}</span>
+					{#if !isLoadingRefreshCollections}
+						<div class="mt-2 min-h-0 flex-1 rounded overflow-hidden">
+							<div class="h-full overflow-y-auto">
+								{#each collections as collection}
+									<div class="relative">
 										<button
 											type="button"
-											on:click|stopPropagation={(e) => toggleShowCollectionOpt(e, collection.id)}
-											><EllipsisHorizontal class="w-4 h-4" /></button
+											on:click|stopPropagation={() => selectCollection(collection)}
+											title={collection.name}
+											class="w-full py-1 px-2 flex items-center justify-between {selectedCollection?.id ===
+											collection.id
+												? 'bg-neutral-200'
+												: 'hover:bg-neutral-100'} text-sm text-left rounded"
 										>
-									</button>
-									{#if showCollectionOpt.id === collection.id}
-										<div
-											class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
-											class:top-full={showCollectionOpt.position === 'bottom'}
-											class:bottom-full={showCollectionOpt.position === 'top'}
-										>
+											<span class="truncate">{collection.name}</span>
 											<button
 												type="button"
-												on:click|stopPropagation={() => showModalEditCollection(collection.id)}
-												class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+												on:click|stopPropagation={(e) => toggleShowCollectionOpt(e, collection.id)}
 											>
-												<Create class="w-5 h-5" />
-												<span>Edit</span>
-											</button>
-											<button
-												type="button"
-												on:click|stopPropagation={() => {
-													showCollectionOpt.id = '';
-													showModalRemoveCollection = { id: collection.id, name: collection.name };
-												}}
-												class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+												<EllipsisHorizontal class="w-4 h-4" /></button
 											>
-												<Trash class="w-5 h-5" />
-												<span>Remove</span>
-											</button>
-										</div>
-									{/if}
-								</div>
-							{/each}
+										</button>
+										{#if showCollectionOpt.id === collection.id}
+											<div
+												class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
+												class:top-full={showCollectionOpt.position === 'bottom'}
+												class:bottom-full={showCollectionOpt.position === 'top'}
+											>
+												<button
+													type="button"
+													on:click|stopPropagation={() => showModalEditCollection(collection.id)}
+													class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+												>
+													<Create class="w-5 h-5" />
+													<span>Edit</span>
+												</button>
+												<button
+													type="button"
+													on:click|stopPropagation={() => {
+														showCollectionOpt.id = '';
+														showModalRemoveCollection = {
+															id: collection.id,
+															name: collection.name
+														};
+													}}
+													class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+												>
+													<Trash class="w-5 h-5" />
+													<span>Remove</span>
+												</button>
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
 						</div>
-					</div>
+					{/if}
 				</div>
 			{/if}
 		</div>
-		{#if !isLoadingRefreshCollection}
+		{#if !isLoadingRefreshCollections}
 			{#if selectedCollection}
 				<div class="min-w-0 flex-1 flex flex-col">
 					<div class="px-2 flex items-center gap-x-2">
-						<h2>ID: {selectedCollection.id}</h2>
+						<h2>Collection ID: {selectedCollection.id}</h2>
 						<button
 							type="button"
 							on:click|stopPropagation={() => copyTextToClipboard(selectedCollection?.id ?? '')}
@@ -570,33 +838,281 @@
 							<Copy class="w-5 h-5" />
 						</button>
 					</div>
-					<div class="min-h-0 mt-2 flex-1 overflow-x-auto">
-						<table>
-							<thead>
-								<tr>
-									<th class="px-2">
-										<div class="flex items-center gap-x-2">
-											<span>_id</span>
-											<span class="font-normal text-sm text-gray-500">uuid</span>
-										</div>
-									</th>
-									<th class="px-2">
-										<div class="flex items-center gap-x-2">
-											<span>_created_by</span>
-											<span class="font-normal text-sm text-gray-500">uuid</span>
-										</div>
-									</th>
-									{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
-										<th class="px-2">
-											<div class="flex items-center gap-x-2">
-												<span>{field}</span>
-												<span class="font-normal text-sm text-gray-500">{props.kind}</span>
-											</div>
-										</th>
-									{/each}
-								</tr>
-							</thead>
-						</table>
+					<div class="min-h-0 mt-2 flex-1 flex flex-col">
+						{#if !isLoadingRefreshRecords}
+							<div class="px-2 flex gap-x-2 items-center">
+								<button
+									type="button"
+									on:click|stopPropagation={toggleAddRecord}
+									class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
+								>
+									Insert row
+								</button>
+							</div>
+							<div class="mt-2 flex-1 overflow-x-auto">
+								<table>
+									<thead>
+										<tr>
+											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+												<div class="flex items-center gap-x-2">
+													<span>_id</span>
+													<span class="font-normal text-sm text-gray-500">uuid</span>
+												</div>
+											</th>
+											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+												<div class="flex items-center gap-x-2">
+													<span>_created_by</span>
+													<span class="font-normal text-sm text-gray-500">uuid</span>
+												</div>
+											</th>
+											{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+													<div class="flex items-center gap-x-2">
+														<span>{field}</span>
+														<span class="font-normal text-sm text-gray-500">{props.kind}</span>
+													</div>
+												</th>
+											{/each}
+											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Options</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#if showAddRecordData.show}
+											<tr>
+												<td class="py-1 px-2 text-sm text-gray-500">Auto-generated</td>
+												<td class="py-1 px-2 text-sm">
+													<input
+														type="text"
+														size="1"
+														bind:value={showAddRecordData.data['_created_by']}
+														placeholder="Leave empty to auto-generated"
+														class="w-full py-px px-1 border border-black bg-transparent outline-none"
+													/>
+												</td>
+												{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
+													<td class="py-1 px-2 text-sm">
+														{#if props.kind === 'boolean'}
+															<div class="flex items-center gap-x-2">
+																<button
+																	type="button"
+																	on:click|preventDefault={() =>
+																		(showAddRecordData.data[field] =
+																			!showAddRecordData.data[field])}
+																>
+																	{#if showAddRecordData.data[field]}
+																		<Checkbox class="w-6 h-6" />
+																	{:else}
+																		<Square class="w-6 h-6" />
+																	{/if}
+																</button>
+															</div>
+														{:else if props.kind === 'date'}
+															<input
+																type="date"
+																bind:value={showAddRecordData.data[field]}
+																size="1"
+																class="w-full px-1 border border-black bg-transparent text-sm outline-none"
+															/>
+														{:else if props.kind === 'time'}
+															<input
+																type="time"
+																bind:value={showAddRecordData.data[field]}
+																size="1"
+																step="0.1"
+																class="w-full px-1 border border-black bg-transparent outline-none"
+															/>
+														{:else if props.kind === 'timestamp'}
+															<input
+																type="datetime-local"
+																bind:value={showAddRecordData.data[field]}
+																size="1"
+																class="w-full px-1 border border-black bg-transparent outline-none"
+															/>
+														{:else}
+															<input
+																type="text"
+																bind:value={showAddRecordData.data[field]}
+																size="1"
+																class="w-full py-px px-1 border border-black bg-transparent outline-none"
+															/>
+														{/if}
+													</td>
+												{/each}
+												<td>
+													<div class="w-fit mx-auto flex gap-x-2">
+														<button
+															type="button"
+															on:click|stopPropagation={addRecord}
+															disabled={isLoadingAddRecord}
+														>
+															{#if !isLoadingAddRecord}
+																<Save class="w-5 h-5" />
+															{:else}
+																<Loading class="w-5 h-5 animate-spin" />
+															{/if}
+														</button>
+														<button
+															type="button"
+															on:click|stopPropagation={unshowAddRecord}
+															class="block w-fit mx-auto"
+														>
+															<CloseCircle class="w-5 h-5" />
+														</button>
+													</div>
+												</td>
+											</tr>
+										{/if}
+										{#each records.data as record}
+											<tr class="hover:bg-neutral-100">
+												<td class="py-1 px-2 text-sm">
+													{record._id}
+												</td>
+												<td class="py-1 px-2 text-sm">
+													{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+														<input
+															type="text"
+															size="1"
+															bind:value={showRecordOpt.editData._created_by}
+															class="w-full py-px px-1 border border-black bg-transparent outline-none"
+														/>
+													{:else}
+														<span>{record._created_by}</span>
+													{/if}
+												</td>
+												{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
+													<td class="py-1 px-2 text-sm">
+														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+															{#if props.kind === 'boolean'}
+																<div class="flex items-center gap-x-2">
+																	<button
+																		type="button"
+																		on:click|preventDefault={() =>
+																			(showRecordOpt.editData[field] =
+																				!showRecordOpt.editData[field])}
+																	>
+																		{#if showRecordOpt.editData[field]}
+																			<Checkbox class="w-6 h-6" />
+																		{:else}
+																			<Square class="w-6 h-6" />
+																		{/if}
+																	</button>
+																</div>
+															{:else if props.kind === 'binary'}
+																<span>{record[field]}</span>
+																<span class="block text-gray-500 text-xs leading-3">
+																	Editing binary is currently unsupported
+																</span>
+															{:else if props.kind === 'date'}
+																<input
+																	type="date"
+																	bind:value={showRecordOpt.editData[field]}
+																	size="1"
+																	class="w-full px-1 border border-black bg-transparent text-sm outline-none"
+																/>
+															{:else if props.kind === 'time'}
+																<input
+																	type="time"
+																	bind:value={showRecordOpt.editData[field]}
+																	size="1"
+																	step="0.1"
+																	class="w-full px-1 border border-black bg-transparent outline-none"
+																/>
+															{:else if props.kind === 'timestamp'}
+																<input
+																	type="datetime-local"
+																	bind:value={showRecordOpt.editData[field]}
+																	size="1"
+																	class="w-full px-1 border border-black bg-transparent outline-none"
+																/>
+															{:else}
+																<input
+																	type="text"
+																	bind:value={showRecordOpt.editData[field]}
+																	size="1"
+																	class="w-full py-px px-1 border border-black bg-transparent outline-none"
+																/>
+															{/if}
+														{:else if props.kind === 'boolean'}
+															{#if record[field]}
+																<Checkbox class="w-5 h-5" />
+															{:else}
+																<Square class="w-5 h-5" />
+															{/if}
+														{:else}
+															<span>{record[field]}</span>
+														{/if}
+													</td>
+												{/each}
+												<td class="py-1 px-2 text-sm">
+													<div class="py-1 relative">
+														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+															<div class="w-fit mx-auto flex gap-x-2">
+																<button
+																	type="button"
+																	on:click|stopPropagation={editRecord}
+																	disabled={isLoadingEditRecord}
+																>
+																	{#if !isLoadingEditRecord}
+																		<Save class="w-5 h-5" />
+																	{:else}
+																		<Loading class="w-5 h-5 animate-spin" />
+																	{/if}
+																</button>
+																<button
+																	type="button"
+																	on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
+																>
+																	<CloseCircle class="w-5 h-5" />
+																</button>
+															</div>
+														{:else}
+															<button
+																type="button"
+																on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
+																class="block w-fit mx-auto"
+															>
+																<Settings class="w-5 h-5" />
+															</button>
+														{/if}
+														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'option'}
+															<div
+																class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm"
+																class:top-full={showRecordOpt.optPosition === 'bottom'}
+																class:bottom-full={showRecordOpt.optPosition === 'top'}
+															>
+																<button
+																	type="button"
+																	on:click|stopPropagation={() => {
+																		unshowAddRecord();
+																		showRecordOpt.action = 'edit';
+																	}}
+																	class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+																>
+																	<Create class="w-5 h-5" />
+																	<span>Edit</span>
+																</button>
+																<button
+																	type="button"
+																	on:click|stopPropagation={() => (showRecordOpt.action = 'remove')}
+																	class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+																>
+																	<Trash class="w-5 h-5" />
+																	<span>Remove</span>
+																</button>
+															</div>
+														{/if}
+													</div>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<div class="flex-1 flex flex-col items-center justify-center">
+								<Loading class="w-12 h-12 animate-spin" />
+							</div>
+						{/if}
 					</div>
 				</div>
 			{:else}
@@ -634,7 +1150,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
 			on:click|stopPropagation={unshowModalEditProject}
-			class="fixed z-10 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
 				<form on:submit|preventDefault={editProject}>
@@ -676,7 +1192,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
 			on:click|stopPropagation={unshowModalRemoveProject}
-			class="fixed z-10 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
 				<div>
@@ -735,7 +1251,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
 			on:click|stopPropagation={unshowModalRemoveCollection}
-			class="fixed z-10 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
 				<div>
@@ -790,13 +1306,61 @@
 		</div>
 	{/if}
 
+	{#if showRecordOpt.action === 'remove'}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={unshowRecordOpt}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<div>
+					<p class="font-bold text-center text-2xl">Remove Record</p>
+				</div>
+				<div class="mt-6 space-y-6">
+					<div class="flex items-center gap-x-2">
+						<Warning class="w-8 h-8 text-red-500" />
+						<p class="text-red-500">This action cannot be undone.</p>
+					</div>
+					<p>Are you sure you want to delete the selected row?</p>
+					<div class="flex gap-x-2">
+						<Button
+							type="button"
+							kind="secondary"
+							disable={isLoadingRemoveRecord}
+							height="h-10"
+							on:click={(e) => {
+								e.stopPropagation();
+								unshowRecordOpt();
+							}}
+						>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							kind="danger"
+							loading={isLoadingRemoveRecord}
+							height="h-10"
+							on:click={(e) => {
+								e.stopPropagation();
+								removeRecord();
+							}}
+						>
+							Remove
+						</Button>
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	{#if showModalCollection !== 'none'}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 		<div
 			on:click|stopPropagation={unshowModalCollection}
-			class="fixed z-10 w-screen h-screen bg-black/20"
+			class="fixed z-20 w-screen h-screen bg-black/20"
 		>
 			<form
 				on:submit|preventDefault={collectionData.id.length > 0 ? editCollection : addCollection}
@@ -856,14 +1420,13 @@
 														type="text"
 														bind:value={collectionData.schemaFields[i].name}
 														on:input={() => validateSchemaField(i)}
-														title={collectionData.schemaFields[i]._internal.name_invalid ===
-														'exists'
+														title={collectionData.schemaFields[i]._internal.invalidName === 'exists'
 															? 'The schema field already exists.'
-															: collectionData.schemaFields[i]._internal.name_invalid === 'format'
+															: collectionData.schemaFields[i]._internal.invalidName === 'format'
 																? 'Incorrect schema field format.'
 																: undefined}
 														class="w-full px-1 border bg-transparent outline-none {collectionData
-															.schemaFields[i]._internal.name_invalid === 'none'
+															.schemaFields[i]._internal.invalidName === 'none'
 															? 'border-black'
 															: 'border-red-500 text-red-500'}"
 													/>
@@ -872,13 +1435,13 @@
 													<select
 														bind:value={collectionData.schemaFields[i].kind}
 														on:change={() =>
-															(collectionData.schemaFields[i]._internal.kind_invalid = false)}
-														title={collectionData.schemaFields[i]._internal.kind_invalid
+															(collectionData.schemaFields[i]._internal.invalidKind = false)}
+														title={collectionData.schemaFields[i]._internal.invalidKind
 															? 'Incorrect schema field type'
 															: undefined}
 														class="border bg-transparent outline-none {collectionData.schemaFields[
 															i
-														]._internal.kind_invalid
+														]._internal.invalidKind
 															? 'border-red-500'
 															: 'border-black'}"
 													>
@@ -931,11 +1494,24 @@
 															<button
 																type="button"
 																on:click|stopPropagation={() =>
-																	(collectionData.schemaFields[i].auth_column =
-																		!collectionData.schemaFields[i].auth_column)}
+																	(collectionData.schemaFields[i].unique =
+																		!collectionData.schemaFields[i].unique)}
 																class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
 															>
-																{#if collectionData.schemaFields[i].auth_column}
+																{#if collectionData.schemaFields[i].unique}
+																	<Checkbox class="w-5 h-5" />
+																{:else}
+																	<Square class="w-5 h-5" />
+																{/if} <span>Unique</span>
+															</button>
+															<button
+																type="button"
+																on:click|stopPropagation={() =>
+																	(collectionData.schemaFields[i].authColumn =
+																		!collectionData.schemaFields[i].authColumn)}
+																class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+															>
+																{#if collectionData.schemaFields[i].authColumn}
 																	<Checkbox class="w-5 h-5" />
 																{:else}
 																	<Square class="w-5 h-5" />
@@ -966,6 +1542,21 @@
 									Add field
 								</button>
 							</div>
+						</div>
+						<div class="mt-6 py-2 px-4 bg-gray-200 rounded">
+							<button
+								type="button"
+								on:click|stopPropagation={() =>
+									(collectionData.optAuthColumnId = !collectionData.optAuthColumnId)}
+								class="flex items-center gap-x-2"
+							>
+								{#if collectionData.optAuthColumnId}
+									<Checkbox class="w-5 h-5" />
+								{:else}
+									<Square class="w-5 h-5" />
+								{/if}
+								<span class="texts-sm">Authentication using _id</span>
+							</button>
 						</div>
 					</div>
 					<div class="w-fit mt-auto ml-auto pt-4 px-4 flex gap-x-2">

@@ -45,26 +45,31 @@ export default class Hyperbase {
 	}
 
 	async init() {
-		const token = localStorage.getItem('token');
-		if (token) {
-			const loadToken = await this.#setAuthToken(token);
-			if (loadToken) {
-				this.#setTokenStorage(loadToken);
-				this.#_authToken = loadToken;
-				this.#_authState.set(AuthState.Authenticated);
-				this.#_isReady.set(true);
+		try {
+			const token = localStorage.getItem('token');
+			if (token) {
+				const loadToken = await this.#setAuthToken(token);
+				if (loadToken) {
+					this.#setTokenStorage(loadToken);
+					this.#_authToken = loadToken;
+					this.#_authState.set(AuthState.Authenticated);
+					this.#_isReady.set(true);
 
-				const decodedJwt = jwtDecode<AuthTokenData>(loadToken);
-				if (decodedJwt.kind === 'Admin') {
+					const decodedJwt = jwtDecode<AuthTokenData>(loadToken);
+					if (decodedJwt.kind !== 'Admin') {
+						throw 'Must signin using admin account';
+					}
+
 					this.#getAdminData();
 				}
-
-				return;
 			}
+		} catch (err) {
+			this.#removeTokenStorage();
+			this.#_authState.set(AuthState.Unauthenticated);
+			throw err;
+		} finally {
+			this.#_isReady.set(true);
 		}
-		this.#removeTokenStorage();
-		this.#_authState.set(AuthState.Unauthenticated);
-		this.#_isReady.set(true);
 	}
 
 	async adminSignUp(email: string, password: string) {
@@ -393,12 +398,14 @@ export class HyperbaseCollection {
 				auth_column?: boolean;
 			};
 		};
+		optAuthColumnId: boolean;
 	}) {
 		await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name: data.name,
-				schema_fields: data.schemaFields
+				schema_fields: data.schemaFields,
+				opt_auth_column_id: data.optAuthColumnId
 			}),
 			headers: {
 				'content-type': 'application/json'
@@ -412,7 +419,7 @@ export class HyperbaseCollection {
 		});
 	}
 
-	async insertOne(object: any) {
+	async insertOne(object: { [field: string]: any }) {
 		const res = await this.#api(`/record`, {
 			method: 'POST',
 			body: JSON.stringify(object),
@@ -432,7 +439,7 @@ export class HyperbaseCollection {
 		return res.data;
 	}
 
-	async updateOne(_id: string, object: any) {
+	async updateOne(_id: string, object: { [field: string]: any }) {
 		const res = await this.#api(`/record/${_id}`, {
 			method: 'PATCH',
 			body: JSON.stringify(object),
@@ -561,7 +568,7 @@ interface CollectionFilter {
 
 interface CollectionOrder {
 	field: string;
-	kind: string;
+	kind: 'desc' | 'asc';
 }
 
 export interface Error {
