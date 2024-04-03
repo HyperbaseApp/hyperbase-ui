@@ -14,11 +14,14 @@
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
+	let abortController: AbortController;
+
 	let projects: Project[] = [];
 
 	let addProjectData = { name: '' };
 
 	let isLoading = true;
+	let isLoadingAddProject = false;
 	let showModalAddProject = false;
 
 	onMount(() => {
@@ -27,33 +30,48 @@
 
 	async function refreshProjects() {
 		try {
+			if (abortController) {
+				abortController.abort();
+			}
+
 			isLoading = true;
 
-			const projectsData: Project[] = await hyperbase.getAllProjects();
+			abortController = new AbortController();
+			const projectsData: Project[] = await hyperbase.getAllProjects(abortController.signal);
 			projectsData.sort((a, b) => {
 				const lowerA = a.name.toLocaleLowerCase();
 				const lowerB = b.name.toLocaleLowerCase();
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
 			projects = projectsData;
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 
 	async function addProject() {
 		try {
-			isLoading = true;
+			isLoadingAddProject = true;
 
-			await hyperbase.createProject(addProjectData.name);
+			await hyperbase.createProject(addProjectData.name.trim());
+
 			await refreshProjects();
 			showModalAddProject = false;
+			addProjectData = {
+				name: ''
+			};
+
+			isLoadingAddProject = false;
 		} catch (err) {
-			errorHandler(err);
-		} finally {
-			isLoading = false;
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingAddProject = false;
+			}
 		}
 	}
 
@@ -83,7 +101,10 @@
 			{#if !isLoading}
 				{#each projects as project}
 					<div class="w-96 p-2">
-						<a href="{base}/project/{project.id}" class="py-2.5 px-4 block border rounded">
+						<a
+							href="{base}/project/{project.id}/collections"
+							class="py-2.5 px-4 block border rounded"
+						>
 							<div class="flex items-center gap-x-2 text-gray-500">
 								<p class="text-sm">{project.id}</p>
 								<button
@@ -146,7 +167,7 @@
 						<Button
 							type="button"
 							kind="secondary"
-							disable={isLoading}
+							disable={isLoadingAddProject}
 							height="h-10"
 							on:click={(e) => {
 								e.stopPropagation();
@@ -155,7 +176,7 @@
 						>
 							Cancel
 						</Button>
-						<Button type="submit" loading={isLoading} height="h-10">Create</Button>
+						<Button type="submit" loading={isLoadingAddProject} height="h-10">Create</Button>
 					</div>
 				</div>
 			</form>

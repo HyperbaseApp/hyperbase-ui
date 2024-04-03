@@ -21,13 +21,16 @@
 		try {
 			isLoading = true;
 
-			reqPassResetId = await hyperbase.adminRequestPasswordReset(email);
+			reqPassResetId = await hyperbase.adminRequestPasswordReset(email.toLowerCase().trim());
 
 			toast.success('A verification code has been sent to your email');
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 
@@ -35,15 +38,18 @@
 		try {
 			isLoading = true;
 
-			await hyperbase.adminConfirmPasswordReset(reqPassResetId, code, newPassword);
+			await hyperbase.adminConfirmPasswordReset(reqPassResetId, code.trim(), newPassword);
 
 			toast.success('Successfully reset the password');
 
 			goto(`${base}/auth/signin`, { replaceState: true });
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 </script>

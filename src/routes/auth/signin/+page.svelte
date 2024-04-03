@@ -4,7 +4,7 @@
 	import Input from '$lib/components/form/Input.svelte';
 	import Hyperbase from '$lib/hyperbase/hyperbase';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -12,18 +12,32 @@
 	let password = '';
 
 	let isLoading = false;
+	let isAllowRegistration = false;
+
+	onMount(() => {
+		(async () => {
+			try {
+				isAllowRegistration = await hyperbase.getInfoAdminRegistration();
+			} catch (err) {
+				errorHandler(err);
+			}
+		})();
+	});
 
 	async function signIn() {
 		try {
 			isLoading = true;
 
-			const token = await hyperbase.adminSignIn(email, password);
+			const token = await hyperbase.adminSignIn(email.toLowerCase().trim(), password);
 
 			localStorage.setItem('token', token!);
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 </script>
@@ -51,6 +65,13 @@
 			<div>
 				<Button type="submit" loading={isLoading}>Sign In</Button>
 			</div>
+			{#if isAllowRegistration}
+				<div>
+					<a href="{base}/auth/signup" class="block w-fit mx-auto text-sm text-gray-500">
+						Register
+					</a>
+				</div>
+			{/if}
 		</div>
 	</form>
 </div>

@@ -1,4 +1,4 @@
 {
-    "base_url": "http://10.42.28.156:8081",
-    "base_ws_url": "ws://10.42.28.156:8081"
+    "default_base_url": "http://10.42.28.156:8081",
+    "default_base_ws_url": "ws://10.42.28.156:8081"
 }

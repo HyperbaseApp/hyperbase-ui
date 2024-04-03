@@ -14,7 +14,7 @@
 <button
 	{type}
 	disabled={loading || disable}
-	on:click
+	on:click|stopPropagation
 	class="w-full h-15 flex items-center justify-center gap-x-2.5 font-bold text-center rounded {kind ===
 	'primary'
 		? 'bg-black hover:bg-neutral-800 text-white'

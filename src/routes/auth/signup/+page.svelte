@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import Button from '$lib/components/button/Button.svelte';
 	import Input from '$lib/components/form/Input.svelte';
 	import Hyperbase from '$lib/hyperbase/hyperbase';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import toast from 'svelte-french-toast';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
@@ -15,17 +17,34 @@
 
 	let isLoading = false;
 
+	onMount(() => {
+		(async () => {
+			try {
+				const isAllowed = await hyperbase.getInfoAdminRegistration();
+				if (!isAllowed) {
+					toast.error('Admin account registration is not allowed');
+					goto(`${base}/auth/signin`, { replaceState: true });
+				}
+			} catch (err) {
+				console.error(err);
+			}
+		})();
+	});
+
 	async function signUp() {
 		try {
 			isLoading = true;
 
-			registrationId = await hyperbase.adminSignUp(email, password);
+			registrationId = await hyperbase.adminSignUp(email.toLowerCase().trim(), password);
 
 			toast.success('A verification code has been sent to your email');
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 
@@ -33,13 +52,18 @@
 		try {
 			isLoading = true;
 
-			await hyperbase.adminSignUpVerify(registrationId, code);
+			await hyperbase.adminSignUpVerify(registrationId, code.trim());
 
 			toast.success('Successfully verify the account');
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
+			goto(`${base}/auth/signin`, { replaceState: true });
+
 			isLoading = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoading = false;
+			}
 		}
 	}
 </script>
@@ -56,9 +80,20 @@
 				<h2 class="mt-8 text-center text-lg">Admin sign up</h2>
 			</div>
 			<div class="mt-8 space-y-6">
-				<Input id="email" label="Email" type="email" required bind:value={email} />
-				<Input id="password" label="Password" type="password" required bind:value={password} />
-				<Button type="submit" loading={isLoading}>Sign Up</Button>
+				<div>
+					<Input id="email" label="Email" type="email" required bind:value={email} />
+				</div>
+				<div>
+					<Input id="password" label="Password" type="password" required bind:value={password} />
+				</div>
+				<div>
+					<Button type="submit" loading={isLoading}>Sign Up</Button>
+				</div>
+				<div>
+					<a href="{base}/auth/signin" class="block w-fit mx-auto text-sm text-gray-500">
+						Sign in
+					</a>
+				</div>
 			</div>
 		</form>
 	{:else}

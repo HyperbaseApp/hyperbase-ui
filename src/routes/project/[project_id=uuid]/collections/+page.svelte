@@ -23,10 +23,15 @@
 	import Save from '$lib/components/icon/Save.svelte';
 	import CloseCircle from '$lib/components/icon/CloseCircle.svelte';
 	import { convertTimestampToDatetimeLocal, formatSchemaFieldData } from '$lib/utils/converter';
+	import DocumentText from '$lib/components/icon/DocumentText.svelte';
+	import DocumentLock from '$lib/components/icon/DocumentLock.svelte';
+	import Folder from '$lib/components/icon/Folder.svelte';
+	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
-	let hyperbaseCollection: HyperbaseCollection;
+
+	let abortSelectCollectionController: AbortController;
 
 	let collections: Collection[] = [];
 	let records: {
@@ -43,7 +48,11 @@
 		data: []
 	};
 
-	let selectedCollection: Collection | undefined = undefined;
+	let selectedCollectionData = {
+		id: '',
+		name: ''
+	};
+	let selectedCollection: HyperbaseCollection | undefined = undefined;
 	let collectionData: CollectionData = {
 		id: '',
 		name: '',
@@ -54,7 +63,7 @@
 	let projectNameRemove = '';
 	let collectionNameRemove = '';
 
-	let isInit = true;
+	let isLoadingInit = true;
 	let isLoadingEditProject = false;
 	let isLoadingRemoveProject = false;
 	let isLoadingRefreshCollections = false;
@@ -65,6 +74,7 @@
 	let isLoadingAddRecord = false;
 	let isLoadingEditRecord = false;
 	let isLoadingRemoveRecord = false;
+	let isLoadingLoadMoreRecords = false;
 	let showModalEditProject = {
 		id: '',
 		name: ''
@@ -117,11 +127,14 @@
 				const projectId = $page.params.project_id;
 				hyperbaseProject = await hyperbase.getProject(projectId);
 				refreshCollections();
-				supportedSchemaFields = await hyperbase.getAllSupportedSchemaFields();
+				supportedSchemaFields = await hyperbase.getInfoAllSupportedSchemaFields();
+
+				isLoadingInit = false;
 			} catch (err) {
-				errorHandler(err);
-			} finally {
-				isInit = false;
+				const code = errorHandler(err);
+				if (code === 0) {
+					isLoadingInit = false;
+				}
 			}
 		})();
 	});
@@ -130,14 +143,17 @@
 		try {
 			isLoadingEditProject = true;
 
-			await hyperbaseProject.update(showModalEditProject.name);
+			await hyperbaseProject.update(showModalEditProject.name.trim());
 			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
 			unshowModalEditProject();
 			toast.success('Successfully updated the project');
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoadingEditProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingEditProject = false;
+			}
 		}
 	}
 
@@ -155,10 +171,13 @@
 			await hyperbaseProject.delete();
 			toast.success('Successfully removed the project');
 			goto(`${base}/projects`);
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoadingRemoveProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingRemoveProject = false;
+			}
 		}
 	}
 
@@ -178,10 +197,13 @@
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
 			collections = collectionsData;
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoadingRefreshCollections = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingRefreshCollections = false;
+			}
 		}
 	}
 
@@ -206,7 +228,12 @@
 		}
 	}
 
-	function selectCollection(collection: Collection) {
+	async function selectCollection(collection: Collection) {
+		selectedCollectionData = {
+			id: collection.id,
+			name: collection.name
+		};
+
 		showProjectOpt = false;
 		showCollectionOpt.id = '';
 		showRecordOpt.id = '';
@@ -216,23 +243,28 @@
 			data: {}
 		};
 
-		selectedCollection = collection;
-		refreshRecords();
-	}
-
-	async function refreshSelectedCollection() {
-		if (!selectedCollection?.id) return;
-
 		try {
+			if (abortSelectCollectionController) {
+				abortSelectCollectionController.abort();
+			}
+
 			isLoadingRefreshSelectedCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(selectedCollection.id);
-			selectedCollection = hyperbaseCollection.data;
-			refreshRecords();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			abortSelectCollectionController = new AbortController();
+			const hyperbaseCollection = await hyperbaseProject.getCollection(
+				abortSelectCollectionController.signal,
+				collection.id
+			);
+
+			selectedCollection = hyperbaseCollection;
+			await refreshRecords(abortSelectCollectionController.signal);
+
 			isLoadingRefreshSelectedCollection = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingRefreshSelectedCollection = false;
+			}
 		}
 	}
 
@@ -241,7 +273,7 @@
 		for (const field of collectionData.schemaFields) {
 			if (field._internal.invalidName !== 'none') return;
 			if (field.kind === '') return;
-			schemaFields[field.name] = {
+			schemaFields[field.name.trim()] = {
 				kind: field.kind,
 				required: field.required,
 				indexed: field.indexed,
@@ -254,16 +286,20 @@
 			isLoadingAddEditCollection = true;
 
 			await hyperbaseProject.createCollection({
-				name: collectionData.name,
-				schemaFields
+				name: collectionData.name.trim(),
+				schemaFields,
+				optAuthColumnId: collectionData.optAuthColumnId
 			});
 			unshowModalCollection();
 			toast.success('Successfully added a collection');
 			await refreshCollections();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+
 			isLoadingAddEditCollection = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingAddEditCollection = false;
+			}
 		}
 	}
 
@@ -281,7 +317,7 @@
 			if (field._internal.invalidName !== 'none') {
 				return;
 			}
-			schemaFields[field.name] = {
+			schemaFields[field.name.trim()] = {
 				kind: field.kind,
 				required: field.required,
 				indexed: field.indexed,
@@ -293,19 +329,22 @@
 		try {
 			isLoadingAddEditCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(collectionData.id);
+			const hyperbaseCollection = await hyperbaseProject.getCollection(null, collectionData.id);
 			await hyperbaseCollection.update({
-				name: collectionData.name,
+				name: collectionData.name.trim(),
 				schemaFields,
 				optAuthColumnId: collectionData.optAuthColumnId
 			});
 			unshowModalCollection();
 			toast.success('Successfully updated the collection');
-			await Promise.all([refreshCollections(), refreshSelectedCollection()]);
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			refreshCollections();
+
 			isLoadingAddEditCollection = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingAddEditCollection = false;
+			}
 		}
 	}
 
@@ -313,15 +352,24 @@
 		try {
 			isLoadingRemoveCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(id);
+			const hyperbaseCollection = await hyperbaseProject.getCollection(null, id);
 			await hyperbaseCollection.delete();
+			selectedCollection = undefined;
 			unshowModalRemoveCollection();
 			toast.success('Successfully removed the collection');
-			await refreshCollections();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			selectedCollectionData = {
+				id: '',
+				name: ''
+			};
+			selectedCollection = undefined;
+			refreshCollections();
+
 			isLoadingRemoveCollection = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingRemoveCollection = false;
+			}
 		}
 	}
 
@@ -446,51 +494,53 @@
 		}
 	}
 
-	async function refreshRecords() {
+	async function refreshRecords(abortSignal: AbortSignal | null) {
 		if (selectedCollection) {
-			(async () => {
-				try {
-					isLoadingRefreshRecords = true;
+			try {
+				isLoadingRefreshRecords = true;
 
-					hyperbaseCollection = await hyperbaseProject.getCollection(selectedCollection.id);
-					const recordsData: {
-						pagination: {
-							count: number;
-							total: number;
-						};
-						data: {
-							[field: string]: any;
-						}[];
-					} = await hyperbaseCollection.findMany({
-						orders: [
-							{
-								field: '_id',
-								kind: 'desc'
-							}
-						]
-					});
-					for (const [field, props] of Object.entries(selectedCollection.schema_fields)) {
-						if (props.kind === 'timestamp') {
-							for (let i = 0; i < recordsData.data.length; ++i) {
-								recordsData.data[i][field] = convertTimestampToDatetimeLocal(
-									recordsData.data[i][field]
-								);
-							}
-						} else if (props.kind === 'json') {
-							for (let i = 0; i < recordsData.data.length; ++i) {
-								if (recordsData.data[i][field]) {
-									recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
-								}
+				const recordsData: {
+					pagination: {
+						count: number;
+						total: number;
+					};
+					data: {
+						[field: string]: any;
+					}[];
+				} = await selectedCollection.findManyRecords(abortSignal, {
+					orders: [
+						{
+							field: '_id',
+							kind: 'desc'
+						}
+					],
+					limit: 20
+				});
+				for (const [field, props] of Object.entries(selectedCollection.data.schema_fields)) {
+					if (props.kind === 'timestamp') {
+						for (let i = 0; i < recordsData.data.length; ++i) {
+							recordsData.data[i][field] = convertTimestampToDatetimeLocal(
+								recordsData.data[i][field]
+							);
+						}
+					} else if (props.kind === 'json') {
+						for (let i = 0; i < recordsData.data.length; ++i) {
+							if (recordsData.data[i][field]) {
+								recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
 							}
 						}
 					}
-					records = recordsData;
-				} catch (err) {
-					errorHandler(err);
-				} finally {
+				}
+
+				records = recordsData;
+
+				isLoadingRefreshRecords = false;
+			} catch (err) {
+				const code = errorHandler(err);
+				if (code === 0) {
 					isLoadingRefreshRecords = false;
 				}
-			})();
+			}
 		} else {
 			records = {
 				pagination: {
@@ -499,6 +549,68 @@
 				},
 				data: []
 			};
+		}
+	}
+
+	async function loadMoreRecords() {
+		if (!selectedCollection) return;
+		try {
+			isLoadingLoadMoreRecords = true;
+
+			const recordsData: {
+				pagination: {
+					count: number;
+					total: number;
+				};
+				data: {
+					[field: string]: any;
+				}[];
+			} = await selectedCollection.findManyRecords(null, {
+				filters: [
+					{
+						field: '_id',
+						op: '<',
+						value: records.data.at(-1)!._id
+					}
+				],
+				orders: [
+					{
+						field: '_id',
+						kind: 'desc'
+					}
+				],
+				limit: 20
+			});
+			for (const [field, props] of Object.entries(selectedCollection.data.schema_fields)) {
+				if (props.kind === 'timestamp') {
+					for (let i = 0; i < recordsData.data.length; ++i) {
+						recordsData.data[i][field] = convertTimestampToDatetimeLocal(
+							recordsData.data[i][field]
+						);
+					}
+				} else if (props.kind === 'json') {
+					for (let i = 0; i < recordsData.data.length; ++i) {
+						if (recordsData.data[i][field]) {
+							recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
+						}
+					}
+				}
+			}
+
+			records = {
+				pagination: {
+					...records.pagination,
+					count: records.pagination.count + recordsData.pagination.count
+				},
+				data: [...records.data, ...recordsData.data]
+			};
+
+			isLoadingLoadMoreRecords = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingLoadMoreRecords = false;
+			}
 		}
 	}
 
@@ -554,12 +666,14 @@
 	}
 
 	async function addRecord() {
+		if (!selectedCollection) return;
+
 		try {
 			isLoadingAddRecord = true;
 
 			const { data, error } = formatSchemaFieldData(
 				showAddRecordData.data,
-				hyperbaseCollection.data.schema_fields
+				selectedCollection.data.schema_fields
 			);
 			if (error) {
 				toast.error(error);
@@ -569,14 +683,17 @@
 				toast.error('Data is undefined');
 				return;
 			}
-			await hyperbaseCollection.insertOne(data);
+			await selectedCollection.insertOne(data);
 			unshowAddRecord();
 			toast.success('Successfully added a record');
-			refreshRecords();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			refreshRecords(null);
+
 			isLoadingAddRecord = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingAddRecord = false;
+			}
 		}
 	}
 
@@ -590,7 +707,7 @@
 			delete editData['_id'];
 			const { data, error } = formatSchemaFieldData(
 				editData,
-				hyperbaseCollection.data.schema_fields
+				selectedCollection.data.schema_fields
 			);
 			if (error) {
 				toast.error(error);
@@ -600,30 +717,37 @@
 				toast.error('Data is undefined');
 				return;
 			}
-			console.log(data);
-			await hyperbaseCollection.updateOne(showRecordOpt.id, data);
+			await selectedCollection.updateOneRecord(showRecordOpt.id, data);
 			unshowRecordOpt();
 			toast.success('Successfully updated the record');
-			refreshRecords();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			refreshRecords(null);
+
 			isLoadingEditRecord = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingEditRecord = false;
+			}
 		}
 	}
 
 	async function removeRecord() {
+		if (!selectedCollection) return;
+
 		try {
 			isLoadingRemoveRecord = true;
 
-			await hyperbaseCollection.deleteOne(showRecordOpt.id);
+			await selectedCollection.deleteOneRecord(showRecordOpt.id);
 			unshowRecordOpt();
 			toast.success('Successfully removed the record');
-			refreshRecords();
-		} catch (err) {
-			errorHandler(err);
-		} finally {
+			refreshRecords(null);
+
 			isLoadingRemoveRecord = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingRemoveRecord = false;
+			}
 		}
 	}
 
@@ -639,6 +763,10 @@
 		}
 		if (showModalRemoveProject) {
 			unshowModalRemoveProject();
+			return;
+		}
+		if (showModalEditProject.id.length > 0) {
+			unshowModalEditProject();
 			return;
 		}
 		if (showModalRemoveCollection.id.length > 0) {
@@ -666,6 +794,10 @@
 				return;
 			}
 		}
+		selectedCollectionData = {
+			id: '',
+			name: ''
+		};
 		selectedCollection = undefined;
 	}
 
@@ -696,11 +828,11 @@
 
 <svelte:window on:keydown={(e) => (e.code === 'Escape' ? escape() : undefined)} />
 
-{#if !isInit}
+{#if !isLoadingInit}
 	<div class="mt-1 min-h-0 flex-1 flex items-stretch">
-		<div class="w-48 flex flex-col border-r">
+		<div class="w-60 flex flex-col border-r">
 			{#if hyperbaseProject}
-				<div class="px-2">
+				<div class="px-2 mb-2">
 					<div class="flex items-center justify-between gap-x-2">
 						<h1 class="font-bold">{hyperbaseProject.data.name}</h1>
 						<div class="py-1 relative flex items-center">
@@ -753,360 +885,98 @@
 						</button>
 					</div>
 				</div>
-				<div class="my-2 border-b" />
-				<div class="px-2 min-h-0 flex-1 flex flex-col">
-					<Button
-						type="button"
-						height="h-8"
-						class="text-sm"
-						on:click={(e) => {
-							e.stopPropagation();
-							showModalCollection = 'add';
-						}}
-					>
-						New Collection
-					</Button>
-					{#if !isLoadingRefreshCollections}
-						<div class="mt-2 min-h-0 flex-1 rounded overflow-hidden">
-							<div class="h-full overflow-y-auto">
-								{#each collections as collection}
-									<div class="relative">
-										<button
-											type="button"
-											on:click|stopPropagation={() => selectCollection(collection)}
-											title={collection.name}
-											class="w-full py-1 px-2 flex items-center justify-between {selectedCollection?.id ===
-											collection.id
-												? 'bg-neutral-200'
-												: 'hover:bg-neutral-100'} text-sm text-left rounded"
-										>
-											<span class="truncate">{collection.name}</span>
+				<div class="border-b" />
+				<div class="min-h-0 flex-1 flex items-stretch">
+					<div class="border-r">
+						<div>
+							<a
+								href="{base}/project/{$page.params.project_id}/collections"
+								class="block py-2.5 px-1 bg-neutral-200"
+							>
+								<DocumentText class="w-8 h-8" />
+							</a>
+							<a
+								href="{base}/project/{$page.params.project_id}/buckets"
+								class="block py-2.5 px-1 hover:bg-neutral-100"
+							>
+								<Folder class="w-8 h-8" />
+							</a>
+							<a
+								href="{base}/project/{$page.params.project_id}/tokens"
+								class="block py-2.5 px-1 hover:bg-neutral-100"
+							>
+								<DocumentLock class="w-8 h-8" />
+							</a>
+						</div>
+					</div>
+					<div class="mt-2 px-2 min-w-0 flex-1 flex flex-col">
+						<Button
+							type="button"
+							height="h-8"
+							class="text-sm"
+							on:click={(e) => {
+								e.stopPropagation();
+								showModalCollection = 'add';
+							}}
+						>
+							New Collection
+						</Button>
+						{#if !isLoadingRefreshCollections}
+							<div class="mt-2 min-h-0 flex-1 rounded overflow-hidden">
+								<div class="h-full overflow-y-auto">
+									{#each collections as collection}
+										<div class="relative">
 											<button
 												type="button"
-												on:click|stopPropagation={(e) => toggleShowCollectionOpt(e, collection.id)}
+												on:click|stopPropagation={() => selectCollection(collection)}
+												title={collection.name}
+												class="w-full py-1 px-2 flex items-center justify-between {selectedCollectionData.id ===
+												collection.id
+													? 'bg-neutral-200'
+													: 'hover:bg-neutral-100'} text-sm text-left rounded"
 											>
-												<EllipsisHorizontal class="w-4 h-4" /></button
-											>
-										</button>
-										{#if showCollectionOpt.id === collection.id}
-											<div
-												class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
-												class:top-full={showCollectionOpt.position === 'bottom'}
-												class:bottom-full={showCollectionOpt.position === 'top'}
-											>
+												<span class="truncate">{collection.name}</span>
 												<button
 													type="button"
-													on:click|stopPropagation={() => showModalEditCollection(collection.id)}
-													class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+													on:click|stopPropagation={(e) =>
+														toggleShowCollectionOpt(e, collection.id)}
 												>
-													<Create class="w-5 h-5" />
-													<span>Edit</span>
-												</button>
-												<button
-													type="button"
-													on:click|stopPropagation={() => {
-														showCollectionOpt.id = '';
-														showModalRemoveCollection = {
-															id: collection.id,
-															name: collection.name
-														};
-													}}
-													class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+													<EllipsisHorizontal class="w-4 h-4" /></button
 												>
-													<Trash class="w-5 h-5" />
-													<span>Remove</span>
-												</button>
-											</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-				</div>
-			{/if}
-		</div>
-		{#if !isLoadingRefreshCollections}
-			{#if selectedCollection}
-				<div class="min-w-0 flex-1 flex flex-col">
-					<div class="px-2 flex items-center gap-x-2">
-						<h2>Collection ID: {selectedCollection.id}</h2>
-						<button
-							type="button"
-							on:click|stopPropagation={() => copyTextToClipboard(selectedCollection?.id ?? '')}
-						>
-							<Copy class="w-5 h-5" />
-						</button>
-					</div>
-					<div class="min-h-0 mt-2 flex-1 flex flex-col">
-						{#if !isLoadingRefreshRecords}
-							<div class="px-2 flex gap-x-2 items-center">
-								<button
-									type="button"
-									on:click|stopPropagation={toggleAddRecord}
-									class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
-								>
-									Insert row
-								</button>
-							</div>
-							<div class="mt-2 flex-1 overflow-x-auto">
-								<table>
-									<thead>
-										<tr>
-											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
-												<div class="flex items-center gap-x-2">
-													<span>_id</span>
-													<span class="font-normal text-sm text-gray-500">uuid</span>
+											</button>
+											{#if showCollectionOpt.id === collection.id}
+												<div
+													class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
+													class:top-full={showCollectionOpt.position === 'bottom'}
+													class:bottom-full={showCollectionOpt.position === 'top'}
+												>
+													<button
+														type="button"
+														on:click|stopPropagation={() => showModalEditCollection(collection.id)}
+														class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+													>
+														<Create class="w-5 h-5" />
+														<span>Edit</span>
+													</button>
+													<button
+														type="button"
+														on:click|stopPropagation={() => {
+															showCollectionOpt.id = '';
+															showModalRemoveCollection = {
+																id: collection.id,
+																name: collection.name
+															};
+														}}
+														class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+													>
+														<Trash class="w-5 h-5" />
+														<span>Remove</span>
+													</button>
 												</div>
-											</th>
-											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
-												<div class="flex items-center gap-x-2">
-													<span>_created_by</span>
-													<span class="font-normal text-sm text-gray-500">uuid</span>
-												</div>
-											</th>
-											{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
-												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
-													<div class="flex items-center gap-x-2">
-														<span>{field}</span>
-														<span class="font-normal text-sm text-gray-500">{props.kind}</span>
-													</div>
-												</th>
-											{/each}
-											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Options</th>
-										</tr>
-									</thead>
-									<tbody>
-										{#if showAddRecordData.show}
-											<tr>
-												<td class="py-1 px-2 text-sm text-gray-500">Auto-generated</td>
-												<td class="py-1 px-2 text-sm">
-													<input
-														type="text"
-														size="1"
-														bind:value={showAddRecordData.data['_created_by']}
-														placeholder="Leave empty to auto-generated"
-														class="w-full py-px px-1 border border-black bg-transparent outline-none"
-													/>
-												</td>
-												{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
-													<td class="py-1 px-2 text-sm">
-														{#if props.kind === 'boolean'}
-															<div class="flex items-center gap-x-2">
-																<button
-																	type="button"
-																	on:click|preventDefault={() =>
-																		(showAddRecordData.data[field] =
-																			!showAddRecordData.data[field])}
-																>
-																	{#if showAddRecordData.data[field]}
-																		<Checkbox class="w-6 h-6" />
-																	{:else}
-																		<Square class="w-6 h-6" />
-																	{/if}
-																</button>
-															</div>
-														{:else if props.kind === 'date'}
-															<input
-																type="date"
-																bind:value={showAddRecordData.data[field]}
-																size="1"
-																class="w-full px-1 border border-black bg-transparent text-sm outline-none"
-															/>
-														{:else if props.kind === 'time'}
-															<input
-																type="time"
-																bind:value={showAddRecordData.data[field]}
-																size="1"
-																step="0.1"
-																class="w-full px-1 border border-black bg-transparent outline-none"
-															/>
-														{:else if props.kind === 'timestamp'}
-															<input
-																type="datetime-local"
-																bind:value={showAddRecordData.data[field]}
-																size="1"
-																class="w-full px-1 border border-black bg-transparent outline-none"
-															/>
-														{:else}
-															<input
-																type="text"
-																bind:value={showAddRecordData.data[field]}
-																size="1"
-																class="w-full py-px px-1 border border-black bg-transparent outline-none"
-															/>
-														{/if}
-													</td>
-												{/each}
-												<td>
-													<div class="w-fit mx-auto flex gap-x-2">
-														<button
-															type="button"
-															on:click|stopPropagation={addRecord}
-															disabled={isLoadingAddRecord}
-														>
-															{#if !isLoadingAddRecord}
-																<Save class="w-5 h-5" />
-															{:else}
-																<Loading class="w-5 h-5 animate-spin" />
-															{/if}
-														</button>
-														<button
-															type="button"
-															on:click|stopPropagation={unshowAddRecord}
-															class="block w-fit mx-auto"
-														>
-															<CloseCircle class="w-5 h-5" />
-														</button>
-													</div>
-												</td>
-											</tr>
-										{/if}
-										{#each records.data as record}
-											<tr class="hover:bg-neutral-100">
-												<td class="py-1 px-2 text-sm">
-													{record._id}
-												</td>
-												<td class="py-1 px-2 text-sm">
-													{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
-														<input
-															type="text"
-															size="1"
-															bind:value={showRecordOpt.editData._created_by}
-															class="w-full py-px px-1 border border-black bg-transparent outline-none"
-														/>
-													{:else}
-														<span>{record._created_by}</span>
-													{/if}
-												</td>
-												{#each Object.entries(selectedCollection.schema_fields) as [field, props]}
-													<td class="py-1 px-2 text-sm">
-														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
-															{#if props.kind === 'boolean'}
-																<div class="flex items-center gap-x-2">
-																	<button
-																		type="button"
-																		on:click|preventDefault={() =>
-																			(showRecordOpt.editData[field] =
-																				!showRecordOpt.editData[field])}
-																	>
-																		{#if showRecordOpt.editData[field]}
-																			<Checkbox class="w-6 h-6" />
-																		{:else}
-																			<Square class="w-6 h-6" />
-																		{/if}
-																	</button>
-																</div>
-															{:else if props.kind === 'binary'}
-																<span>{record[field]}</span>
-																<span class="block text-gray-500 text-xs leading-3">
-																	Editing binary is currently unsupported
-																</span>
-															{:else if props.kind === 'date'}
-																<input
-																	type="date"
-																	bind:value={showRecordOpt.editData[field]}
-																	size="1"
-																	class="w-full px-1 border border-black bg-transparent text-sm outline-none"
-																/>
-															{:else if props.kind === 'time'}
-																<input
-																	type="time"
-																	bind:value={showRecordOpt.editData[field]}
-																	size="1"
-																	step="0.1"
-																	class="w-full px-1 border border-black bg-transparent outline-none"
-																/>
-															{:else if props.kind === 'timestamp'}
-																<input
-																	type="datetime-local"
-																	bind:value={showRecordOpt.editData[field]}
-																	size="1"
-																	class="w-full px-1 border border-black bg-transparent outline-none"
-																/>
-															{:else}
-																<input
-																	type="text"
-																	bind:value={showRecordOpt.editData[field]}
-																	size="1"
-																	class="w-full py-px px-1 border border-black bg-transparent outline-none"
-																/>
-															{/if}
-														{:else if props.kind === 'boolean'}
-															{#if record[field]}
-																<Checkbox class="w-5 h-5" />
-															{:else}
-																<Square class="w-5 h-5" />
-															{/if}
-														{:else}
-															<span>{record[field]}</span>
-														{/if}
-													</td>
-												{/each}
-												<td class="py-1 px-2 text-sm">
-													<div class="py-1 relative">
-														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
-															<div class="w-fit mx-auto flex gap-x-2">
-																<button
-																	type="button"
-																	on:click|stopPropagation={editRecord}
-																	disabled={isLoadingEditRecord}
-																>
-																	{#if !isLoadingEditRecord}
-																		<Save class="w-5 h-5" />
-																	{:else}
-																		<Loading class="w-5 h-5 animate-spin" />
-																	{/if}
-																</button>
-																<button
-																	type="button"
-																	on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
-																>
-																	<CloseCircle class="w-5 h-5" />
-																</button>
-															</div>
-														{:else}
-															<button
-																type="button"
-																on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
-																class="block w-fit mx-auto"
-															>
-																<Settings class="w-5 h-5" />
-															</button>
-														{/if}
-														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'option'}
-															<div
-																class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm"
-																class:top-full={showRecordOpt.optPosition === 'bottom'}
-																class:bottom-full={showRecordOpt.optPosition === 'top'}
-															>
-																<button
-																	type="button"
-																	on:click|stopPropagation={() => {
-																		unshowAddRecord();
-																		showRecordOpt.action = 'edit';
-																	}}
-																	class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
-																>
-																	<Create class="w-5 h-5" />
-																	<span>Edit</span>
-																</button>
-																<button
-																	type="button"
-																	on:click|stopPropagation={() => (showRecordOpt.action = 'remove')}
-																	class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
-																>
-																	<Trash class="w-5 h-5" />
-																	<span>Remove</span>
-																</button>
-															</div>
-														{/if}
-													</div>
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
+											{/if}
+										</div>
+									{/each}
+								</div>
 							</div>
 						{:else}
 							<div class="flex-1 flex flex-col items-center justify-center">
@@ -1115,34 +985,356 @@
 						{/if}
 					</div>
 				</div>
-			{:else}
-				<div class="flex-1 flex items-center justify-center">
-					<div class="max-w-96 p-4 border rounded">
-						<p class="font-bold text-lg">Collection Editor</p>
-						<p class="mt-2.5">
-							{#if collections.length > 0}
-								Select a collection from the navigation panel on the left to views its data, or
-								create a new one.
-							{:else}
-								There are no collections available in this project
-							{/if}
-						</p>
-						<div class="mt-4">
-							<Button
+			{/if}
+		</div>
+		<div class="min-w-0 flex-1 flex flex-col">
+			<h2 class="px-2 font-bold flex">
+				Collection{#if selectedCollectionData}
+					&nbsp;
+					<span class="truncate">{selectedCollectionData.name}</span>
+				{/if}
+			</h2>
+			{#if !isLoadingRefreshCollections}
+				{#if selectedCollectionData.id}
+					{#if !isLoadingRefreshSelectedCollection}
+						<div class="px-2 flex items-center gap-x-2">
+							<h3>ID: {selectedCollectionData.id}</h3>
+							<button
 								type="button"
-								height="h-10"
-								on:click={(e) => {
-									e.stopPropagation();
-									showModalCollection = 'add';
-								}}
+								on:click|stopPropagation={() =>
+									copyTextToClipboard(selectedCollection?.data.id ?? '')}
 							>
-								Create a new collection
-							</Button>
+								<Copy class="w-5 h-5" />
+							</button>
+						</div>
+						<div class="min-h-0 mt-2 flex-1 flex flex-col">
+							{#if selectedCollection && !isLoadingRefreshSelectedCollection && !isLoadingRefreshRecords}
+								<div class="px-2 flex gap-x-2 items-center">
+									<button
+										type="button"
+										on:click|stopPropagation={toggleAddRecord}
+										class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
+									>
+										Insert row
+									</button>
+								</div>
+								<div class="mt-2 flex-1 overflow-x-auto">
+									<table>
+										<thead>
+											<tr>
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+													<div class="flex items-center gap-x-2">
+														<span>_id</span>
+														<span class="font-normal text-sm text-gray-500">uuid</span>
+													</div>
+												</th>
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+													<div class="flex items-center gap-x-2">
+														<span>_created_by</span>
+														<span class="font-normal text-sm text-gray-500">uuid</span>
+													</div>
+												</th>
+												{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
+													<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+														<div class="flex items-center gap-x-2">
+															<span>{field}</span>
+															<span class="font-normal text-sm text-gray-500">{props.kind}</span>
+														</div>
+													</th>
+												{/each}
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Options</th>
+											</tr>
+										</thead>
+										<tbody>
+											{#if showAddRecordData.show}
+												<tr>
+													<td class="py-1 px-2 text-sm text-gray-500">Auto-generated</td>
+													<td class="py-1 px-2 text-sm">
+														<input
+															type="text"
+															size="1"
+															bind:value={showAddRecordData.data['_created_by']}
+															placeholder="Leave empty to auto-generated"
+															class="w-full py-px px-1 border border-black bg-transparent outline-none"
+														/>
+													</td>
+													{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
+														<td class="py-1 px-2 text-sm">
+															{#if props.kind === 'boolean'}
+																<div class="flex items-center gap-x-2">
+																	<button
+																		type="button"
+																		on:click|preventDefault={() =>
+																			(showAddRecordData.data[field] =
+																				!showAddRecordData.data[field])}
+																	>
+																		{#if showAddRecordData.data[field]}
+																			<Checkbox class="w-6 h-6" />
+																		{:else}
+																			<Square class="w-6 h-6" />
+																		{/if}
+																	</button>
+																</div>
+															{:else if props.kind === 'date'}
+																<input
+																	type="date"
+																	bind:value={showAddRecordData.data[field]}
+																	size="1"
+																	class="w-full px-1 border border-black bg-transparent text-sm outline-none"
+																/>
+															{:else if props.kind === 'time'}
+																<input
+																	type="time"
+																	bind:value={showAddRecordData.data[field]}
+																	size="1"
+																	step="0.1"
+																	class="w-full px-1 border border-black bg-transparent outline-none"
+																/>
+															{:else if props.kind === 'timestamp'}
+																<input
+																	type="datetime-local"
+																	bind:value={showAddRecordData.data[field]}
+																	size="1"
+																	class="w-full px-1 border border-black bg-transparent outline-none"
+																/>
+															{:else}
+																<input
+																	type="text"
+																	bind:value={showAddRecordData.data[field]}
+																	size="1"
+																	class="w-full py-px px-1 border border-black bg-transparent outline-none"
+																/>
+															{/if}
+														</td>
+													{/each}
+													<td>
+														<div class="w-fit mx-auto flex gap-x-2">
+															<button
+																type="button"
+																on:click|stopPropagation={addRecord}
+																disabled={isLoadingAddRecord}
+															>
+																{#if !isLoadingAddRecord}
+																	<Save class="w-5 h-5" />
+																{:else}
+																	<Loading class="w-5 h-5 animate-spin" />
+																{/if}
+															</button>
+															<button
+																type="button"
+																on:click|stopPropagation={unshowAddRecord}
+																class="block w-fit mx-auto"
+															>
+																<CloseCircle class="w-5 h-5" />
+															</button>
+														</div>
+													</td>
+												</tr>
+											{/if}
+											{#each records.data as record}
+												<tr class="hover:bg-neutral-100">
+													<td class="py-1 px-2 text-sm">
+														{record._id}
+													</td>
+													<td class="py-1 px-2 text-sm">
+														{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+															<input
+																type="text"
+																size="1"
+																bind:value={showRecordOpt.editData._created_by}
+																class="w-full py-px px-1 border border-black bg-transparent outline-none"
+															/>
+														{:else}
+															<span>{record._created_by}</span>
+														{/if}
+													</td>
+													{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
+														<td class="py-1 px-2 text-sm">
+															{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+																{#if props.kind === 'boolean'}
+																	<div class="flex items-center gap-x-2">
+																		<button
+																			type="button"
+																			on:click|preventDefault={() =>
+																				(showRecordOpt.editData[field] =
+																					!showRecordOpt.editData[field])}
+																		>
+																			{#if showRecordOpt.editData[field]}
+																				<Checkbox class="w-6 h-6" />
+																			{:else}
+																				<Square class="w-6 h-6" />
+																			{/if}
+																		</button>
+																	</div>
+																{:else if props.kind === 'binary'}
+																	<span>{record[field]}</span>
+																	<span class="block text-gray-500 text-xs leading-3">
+																		Editing binary is currently unsupported
+																	</span>
+																{:else if props.kind === 'date'}
+																	<input
+																		type="date"
+																		bind:value={showRecordOpt.editData[field]}
+																		size="1"
+																		class="w-full px-1 border border-black bg-transparent text-sm outline-none"
+																	/>
+																{:else if props.kind === 'time'}
+																	<input
+																		type="time"
+																		bind:value={showRecordOpt.editData[field]}
+																		size="1"
+																		step="0.1"
+																		class="w-full px-1 border border-black bg-transparent outline-none"
+																	/>
+																{:else if props.kind === 'timestamp'}
+																	<input
+																		type="datetime-local"
+																		bind:value={showRecordOpt.editData[field]}
+																		size="1"
+																		class="w-full px-1 border border-black bg-transparent outline-none"
+																	/>
+																{:else}
+																	<input
+																		type="text"
+																		bind:value={showRecordOpt.editData[field]}
+																		size="1"
+																		class="w-full py-px px-1 border border-black bg-transparent outline-none"
+																	/>
+																{/if}
+															{:else if props.kind === 'boolean'}
+																{#if record[field]}
+																	<Checkbox class="w-5 h-5" />
+																{:else}
+																	<Square class="w-5 h-5" />
+																{/if}
+															{:else}
+																<span>{record[field]}</span>
+															{/if}
+														</td>
+													{/each}
+													<td class="py-1 px-2 text-sm">
+														<div class="py-1 relative">
+															{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
+																<div class="w-fit mx-auto flex gap-x-2">
+																	<button
+																		type="button"
+																		on:click|stopPropagation={editRecord}
+																		disabled={isLoadingEditRecord}
+																	>
+																		{#if !isLoadingEditRecord}
+																			<Save class="w-5 h-5" />
+																		{:else}
+																			<Loading class="w-5 h-5 animate-spin" />
+																		{/if}
+																	</button>
+																	<button
+																		type="button"
+																		on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
+																	>
+																		<CloseCircle class="w-5 h-5" />
+																	</button>
+																</div>
+															{:else}
+																<button
+																	type="button"
+																	on:click|stopPropagation={(e) => toggleShowRecordOpt(e, record)}
+																	class="block w-fit mx-auto"
+																>
+																	<Settings class="w-5 h-5" />
+																</button>
+															{/if}
+															{#if showRecordOpt.id === record._id && showRecordOpt.action === 'option'}
+																<div
+																	class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm"
+																	class:top-full={showRecordOpt.optPosition === 'bottom'}
+																	class:bottom-full={showRecordOpt.optPosition === 'top'}
+																>
+																	<button
+																		type="button"
+																		on:click|stopPropagation={() => {
+																			unshowAddRecord();
+																			showRecordOpt.action = 'edit';
+																		}}
+																		class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+																	>
+																		<Create class="w-5 h-5" />
+																		<span>Edit</span>
+																	</button>
+																	<button
+																		type="button"
+																		on:click|stopPropagation={() =>
+																			(showRecordOpt.action = 'remove')}
+																		class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+																	>
+																		<Trash class="w-5 h-5" />
+																		<span>Remove</span>
+																	</button>
+																</div>
+															{/if}
+														</div>
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+									{#if records.pagination.count < records.pagination.total}
+										<button
+											type="button"
+											on:click|stopPropagation={loadMoreRecords}
+											disabled={isLoadingLoadMoreRecords}
+											class="block w-fit my-4 py-2 px-4 flex items-center gap-x-2 mx-auto border border-black rounded text-sm"
+										>
+											{#if isLoadingLoadMoreRecords}
+												<Loading class="w-5 h-5 animate-spin" />
+											{/if}
+											Load more
+										</button>
+									{/if}
+								</div>
+							{:else}
+								<div class="flex-1 flex flex-col items-center justify-center">
+									<Loading class="w-12 h-12 animate-spin" />
+								</div>
+							{/if}
+						</div>
+					{:else}
+						<div class="flex-1 flex flex-col items-center justify-center">
+							<Loading class="w-12 h-12 animate-spin" />
+						</div>
+					{/if}
+				{:else}
+					<div class="flex-1 flex items-center justify-center">
+						<div class="max-w-96 p-4 border rounded">
+							<p class="font-bold text-lg">Collection Editor</p>
+							<p class="mt-2.5">
+								{#if collections.length > 0}
+									Select a collection from the navigation panel on the left to views its data, or
+									create a new one.
+								{:else}
+									There are no collections available in this project
+								{/if}
+							</p>
+							<div class="mt-4">
+								<Button
+									type="button"
+									height="h-10"
+									on:click={(e) => {
+										e.stopPropagation();
+										showModalCollection = 'add';
+									}}
+								>
+									Create a new collection
+								</Button>
+							</div>
 						</div>
 					</div>
+				{/if}
+			{:else}
+				<div class="flex-1 flex flex-col items-center justify-center">
+					<Loading class="w-12 h-12 animate-spin" />
 				</div>
 			{/if}
-		{/if}
+		</div>
 	</div>
 
 	{#if showModalEditProject.id.length > 0}
@@ -1385,10 +1577,7 @@
 							/>
 						</div>
 						<div class="mt-6 bg-gray-200 rounded">
-							<p class="pt-2 px-4 font-bold text-sm text-gray-600">
-								Schema Fields
-								<span class="text-red-500">*</span>
-							</p>
+							<p class="pt-2 px-4 font-bold text-sm text-gray-600">Schema Fields</p>
 							<div class="pt-2 px-4 space-y-2">
 								<table class="w-full text-sm">
 									<thead>
@@ -1543,20 +1732,13 @@
 								</button>
 							</div>
 						</div>
-						<div class="mt-6 py-2 px-4 bg-gray-200 rounded">
-							<button
-								type="button"
-								on:click|stopPropagation={() =>
-									(collectionData.optAuthColumnId = !collectionData.optAuthColumnId)}
-								class="flex items-center gap-x-2"
-							>
-								{#if collectionData.optAuthColumnId}
-									<Checkbox class="w-5 h-5" />
-								{:else}
-									<Square class="w-5 h-5" />
-								{/if}
-								<span class="texts-sm">Authentication using _id</span>
-							</button>
+						<div class="mt-6">
+							<InputCheckbox
+								on:click={() => (collectionData.optAuthColumnId = !collectionData.optAuthColumnId)}
+								checked={collectionData.optAuthColumnId}
+								label="Authentication"
+								text="Using the _id field to authenticate MQTT publishers"
+							/>
 						</div>
 					</div>
 					<div class="w-fit mt-auto ml-auto pt-4 px-4 flex gap-x-2">

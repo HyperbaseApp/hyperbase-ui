@@ -87,7 +87,7 @@ export function convertTimestampToDatetimeLocal(ts: string) {
 	return `${year}-${month < 10 ? `0${month}` : month}-${date < 10 ? `0${date}` : date}T${hours < 10 ? `0${hours}` : hours}:${minutes < 10 ? `0${minutes}` : minutes}:${seconds < 10 ? `0${seconds}` : seconds}`;
 }
 
-function convertDatetimeLocalToTimestamp(dt: string) {
+export function convertDatetimeLocalToTimestamp(dt: string) {
 	const t = new Date(dt);
 	return t.toISOString();
 }

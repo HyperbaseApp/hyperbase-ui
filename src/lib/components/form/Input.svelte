@@ -2,7 +2,7 @@
 	import type { HTMLInputTypeAttribute } from 'svelte/elements';
 
 	export let id: string;
-	export let label: string | undefined = undefined;
+	export let label: string;
 	export let type: HTMLInputTypeAttribute;
 	export let required = false;
 	export let hideAsterisk = false;
