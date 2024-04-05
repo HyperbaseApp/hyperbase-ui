@@ -607,9 +607,9 @@ export class HyperbaseCollection {
 
 	async subscribe(callbacks?: {
 		onOpenCallback?: (ev: Event) => void;
-		onMessageCallback?: (ev: Event) => void;
+		onMessageCallback?: (ev: MessageEvent) => void;
 		onErrorCallback?: (ev: Event) => void;
-		onCloseCallback?: (ev: Event) => void;
+		onCloseCallback?: (ev: CloseEvent) => void;
 	}) {
 		if (this.#_socket) {
 			this.unsubscribe();

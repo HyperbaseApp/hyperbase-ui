@@ -945,6 +945,15 @@
 							<Copy class="w-5 h-5" />
 						</button>
 					</div>
+					<div class="px-2 flex items-center gap-x-2">
+						<h3>Token: {selectedToken.token}</h3>
+						<button
+							type="button"
+							on:click|stopPropagation={() => copyTextToClipboard(selectedToken?.token ?? '')}
+						>
+							<Copy class="w-5 h-5" />
+						</button>
+					</div>
 					<div class="min-h-0 mt-2 flex-1 flex flex-col">
 						{#if !isLoadingRefreshRules}
 							<div class="px-2 flex gap-x-2 items-center">

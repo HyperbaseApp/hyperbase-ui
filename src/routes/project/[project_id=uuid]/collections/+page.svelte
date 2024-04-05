@@ -62,6 +62,7 @@
 	let supportedSchemaFields: string[];
 	let projectNameRemove = '';
 	let collectionNameRemove = '';
+	let listenChangeRecordState: 'off' | 'error' | 'active' = 'off';
 
 	let isLoadingInit = true;
 	let isLoadingEditProject = false;
@@ -229,6 +230,7 @@
 	}
 
 	async function selectCollection(collection: Collection) {
+		stopRealtimeRecord();
 		selectedCollectionData = {
 			id: collection.id,
 			name: collection.name
@@ -751,6 +753,52 @@
 		}
 	}
 
+	async function toggleRealtimeRecord() {
+		if (!selectedCollection) return;
+
+		if (listenChangeRecordState !== 'off') {
+			stopRealtimeRecord();
+			refreshRecords(null);
+			return;
+		}
+
+		try {
+			await refreshRecords(null);
+			selectedCollection.subscribe({
+				onOpenCallback: () => (listenChangeRecordState = 'active'),
+				onMessageCallback: (ev) => {
+					const parsedData = JSON.parse(ev.data);
+					const data = parsedData.data;
+					switch (parsedData.kind) {
+						case 'insert_one':
+							records = {
+								pagination: {
+									count: records.pagination.count + 1,
+									total: records.pagination.total + 1
+								},
+								data: [data, ...records.data]
+							};
+							break;
+						case 'update_one':
+							break;
+						case 'delete_one':
+							break;
+					}
+				},
+				onErrorCallback: () => (listenChangeRecordState = 'error'),
+				onCloseCallback: () => (listenChangeRecordState = 'off')
+			});
+		} catch (err) {
+			errorHandler(err);
+		}
+	}
+
+	function stopRealtimeRecord() {
+		if (!selectedCollection) return;
+		selectedCollection.unsubscribe();
+		listenChangeRecordState = 'off';
+	}
+
 	function escape() {
 		showProjectOpt = false;
 		if (showSchemaFieldOpt.idx >= 0) {
@@ -1016,6 +1064,20 @@
 										class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
 									>
 										Insert row
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={toggleRealtimeRecord}
+										class="block w-fit px-4 py-1 flex items-center gap-x-1.5 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
+									>
+										<div
+											class="rounded-full w-2 h-2 {listenChangeRecordState === 'active'
+												? 'bg-green-500'
+												: listenChangeRecordState === 'error'
+													? 'bg-yellow-500'
+													: 'bg-red-500'}"
+										/>
+										Realtime
 									</button>
 								</div>
 								<div class="mt-2 flex-1 overflow-x-auto">
