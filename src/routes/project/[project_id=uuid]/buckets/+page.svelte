@@ -26,6 +26,10 @@
 	import Folder from '$lib/components/icon/Folder.svelte';
 	import formatFileSize from '$lib/utils/formatFileSize';
 	import CloudDownload from '$lib/components/icon/CloudDownload.svelte';
+	import Send from '$lib/components/icon/Send.svelte';
+	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
+	import type { Pagination } from '$lib/types/pagination';
+	import Archive from '$lib/components/icon/Archive.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
@@ -35,10 +39,7 @@
 
 	let buckets: Bucket[] = [];
 	let files: {
-		pagination: {
-			count: number;
-			total: number;
-		};
+		pagination: Pagination;
 		data: TFile[];
 	} = {
 		pagination: {
@@ -63,6 +64,8 @@
 
 	let isLoadingInit = true;
 	let isLoadingEditProject = false;
+	let isLoadingTransferProject = false;
+	let isLoadingDuplicateProject = false;
 	let isLoadingRemoveProject = false;
 	let isLoadingRefreshBuckets = false;
 	let isLoadingRefreshFiles = false;
@@ -76,6 +79,15 @@
 	let showModalEditProject = {
 		id: '',
 		name: ''
+	};
+	let showModalTransferProject = {
+		id: '',
+		email: ''
+	};
+	let showModalDuplicateProject = {
+		show: false,
+		withRecords: false,
+		withFiles: false
 	};
 	let showModalRemoveProject = false;
 	let showModalRemoveBucket = {
@@ -149,7 +161,7 @@
 
 			await hyperbaseProject.update(showModalEditProject.name.trim());
 			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
-			unshowModalEditProject();
+			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
 			isLoadingEditProject = false;
@@ -161,10 +173,70 @@
 		}
 	}
 
-	function unshowModalEditProject() {
+	function unshowModalEditProject(force?: boolean) {
+		if (!force && isLoadingEditProject) return;
+
 		showModalEditProject = {
 			id: '',
 			name: ''
+		};
+	}
+
+	async function transferProject() {
+		try {
+			isLoadingTransferProject = true;
+
+			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			unshowModalTransferProject(true);
+			toast.success('Successfully transfer the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingTransferProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingTransferProject = false;
+			}
+		}
+	}
+
+	function unshowModalTransferProject(force?: boolean) {
+		if (!force && isLoadingTransferProject) return;
+
+		showModalTransferProject = {
+			id: '',
+			email: ''
+		};
+	}
+
+	async function duplicateProject() {
+		try {
+			isLoadingDuplicateProject = true;
+
+			await hyperbaseProject.duplicate(
+				showModalDuplicateProject.withFiles,
+				showModalDuplicateProject.withRecords
+			);
+			unshowModalDuplicateProject(true);
+			toast.success('Successfully duplicate the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingDuplicateProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingDuplicateProject = false;
+			}
+		}
+	}
+
+	function unshowModalDuplicateProject(force?: boolean) {
+		if (!force && isLoadingDuplicateProject) return;
+
+		showModalDuplicateProject = {
+			show: false,
+			withRecords: false,
+			withFiles: false
 		};
 	}
 
@@ -185,7 +257,9 @@
 		}
 	}
 
-	function unshowModalRemoveProject() {
+	function unshowModalRemoveProject(force?: boolean) {
+		if (!force && isLoadingRemoveProject) return;
+
 		projectNameRemove = '';
 		showModalRemoveProject = false;
 	}
@@ -310,7 +384,7 @@
 			await hyperbaseProject.createBucket({
 				name: bucketData.name.trim()
 			});
-			unshowModalBucket();
+			unshowModalBucket(true);
 			toast.success('Successfully added a bucket');
 			await refreshBuckets();
 
@@ -331,9 +405,18 @@
 			await hyperbaseBucket.update({
 				name: bucketData.name.trim()
 			});
-			unshowModalBucket();
+			if (bucketData.id === selectedBucketData.id) {
+				selectedBucketData = {
+					id: selectedBucketData.id,
+					name: bucketData.name.trim()
+				};
+			}
+			unshowModalBucket(true);
 			toast.success('Successfully updated the bucket');
 			refreshBuckets();
+			if (bucketData.id === selectedBucket?.data.id) {
+				selectedBucket = await hyperbaseProject.getBucket(null, selectedBucket.data.id);
+			}
 
 			isLoadingAddEditBucket = false;
 		} catch (err) {
@@ -351,7 +434,7 @@
 			const hyperbaseBucket = await hyperbaseProject.getBucket(null, id);
 			await hyperbaseBucket.delete();
 			selectedBucket = undefined;
-			unshowModalRemoveBucket();
+			unshowModalRemoveBucket(true);
 			toast.success('Successfully removed the bucket');
 			selectedBucketData = {
 				id: '',
@@ -369,7 +452,9 @@
 		}
 	}
 
-	function unshowModalRemoveBucket() {
+	function unshowModalRemoveBucket(force?: boolean) {
+		if (!force && isLoadingRemoveBucket) return;
+
 		bucketNameRemove = '';
 		showModalRemoveBucket = { id: '', name: '' };
 	}
@@ -386,10 +471,12 @@
 		bucketData = editBucketData;
 		showBucketOpt.id = '';
 		showModalBucket = 'edit';
-		unshowAddFile();
+		unshowAddFile(true);
 	}
 
-	function unshowModalBucket() {
+	function unshowModalBucket(force?: boolean) {
+		if (!force && isLoadingAddEditBucket) return;
+
 		bucketData = {
 			id: '',
 			name: ''
@@ -404,10 +491,7 @@
 				isLoadingRefreshFiles = true;
 
 				const filesData: {
-					pagination: {
-						count: number;
-						total: number;
-					};
+					pagination: Pagination;
 					data: TFile[];
 				} = await selectedBucket.findManyFiles(abortSignal, undefined, 15);
 				files = filesData;
@@ -436,10 +520,7 @@
 			isLoadingLoadMoreFiles = true;
 
 			const filesData: {
-				pagination: {
-					count: number;
-					total: number;
-				};
+				pagination: Pagination;
 				data: TFile[];
 			} = await selectedBucket.findManyFiles(null, files.data.at(-1)?.id, 15);
 
@@ -470,6 +551,8 @@
 			name: string;
 		}
 	) {
+		if (isLoadingEditFile) return;
+
 		showFileOpt.id = showFileOpt.id === file.id ? '' : file.id;
 		if (showFileOpt.id.length > 0) {
 			showFileOpt.action = 'option';
@@ -488,7 +571,9 @@
 		}
 	}
 
-	function unshowAddFile() {
+	function unshowAddFile(force?: boolean) {
+		if (!force && isLoadingAddFile) return;
+
 		showAddFileData = {
 			show: false,
 			data: {
@@ -498,7 +583,9 @@
 		};
 	}
 
-	function unshowFileOpt() {
+	function unshowFileOpt(force?: boolean) {
+		if (!force && isLoadingRemoveFile) return;
+
 		showFileOpt = {
 			id: '',
 			action: 'none',
@@ -521,7 +608,7 @@
 				showFileOpt.editData.createdBy.trim(),
 				showFileOpt.editData.name.trim()
 			);
-			unshowFileOpt();
+			unshowFileOpt(true);
 			toast.success('Successfully updated the file');
 			refreshFiles(null);
 
@@ -541,7 +628,7 @@
 			isLoadingRemoveFile = true;
 
 			await selectedBucket.deleteOneFile(showFileOpt.id);
-			unshowFileOpt();
+			unshowFileOpt(true);
 			toast.success('Successfully removed the file');
 			refreshFiles(null);
 
@@ -657,6 +744,35 @@
 										type="button"
 										on:click|stopPropagation={() => {
 											showProjectOpt = false;
+											showModalTransferProject = {
+												id: hyperbaseProject.data.id,
+												email: ''
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Send class="w-5 h-5" />
+										<span>Transfer</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
+											showModalDuplicateProject = {
+												show: true,
+												withFiles: false,
+												withRecords: false
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Copy class="w-5 h-5" />
+										<span>Duplicate</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
 											showModalRemoveProject = true;
 										}}
 										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
@@ -700,6 +816,12 @@
 							>
 								<DocumentLock class="w-8 h-8" />
 							</a>
+							<a
+								href="{base}/project/{$page.params.project_id}/logs"
+								class="block py-2.5 px-1 hover:bg-neutral-100"
+							>
+								<Archive class="w-8 h-8" />
+							</a>
 						</div>
 					</div>
 					<div class="mt-2 px-2 min-w-0 flex-1 flex flex-col">
@@ -707,10 +829,7 @@
 							type="button"
 							height="h-8"
 							class="text-sm"
-							on:click={(e) => {
-								e.stopPropagation();
-								showModalBucket = 'add';
-							}}
+							on:click={() => (showModalBucket = 'add')}
 						>
 							New Bucket
 						</Button>
@@ -781,9 +900,7 @@
 		</div>
 		<div class="min-w-0 flex-1 flex flex-col">
 			<h2 class="px-2 font-bold">
-				Bucket{#if selectedBucketData}
-					&nbsp;
-					<span class="truncate">{selectedBucketData.name}</span>
+				Bucket{#if selectedBucketData}&nbsp;<span class="truncate">{selectedBucketData.name}</span>
 				{/if}
 			</h2>
 			{#if !isLoadingRefreshBuckets}
@@ -995,14 +1112,7 @@
 								{/if}
 							</p>
 							<div class="mt-4">
-								<Button
-									type="button"
-									height="h-10"
-									on:click={(e) => {
-										e.stopPropagation();
-										showModalBucket = 'add';
-									}}
-								>
+								<Button type="button" height="h-10" on:click={() => (showModalBucket = 'add')}>
 									Create a new bucket
 								</Button>
 							</div>
@@ -1021,7 +1131,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalEditProject}
+			on:click|stopPropagation={() => unshowModalEditProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1044,10 +1154,7 @@
 								kind="secondary"
 								disable={isLoadingEditProject}
 								height="h-10"
-								on:click={(e) => {
-									e.stopPropagation();
-									unshowModalEditProject();
-								}}
+								on:click={() => unshowModalEditProject()}
 							>
 								Cancel
 							</Button>
@@ -1059,11 +1166,99 @@
 		</div>
 	{/if}
 
+	{#if showModalTransferProject.id.length > 0}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalTransferProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={transferProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Transfer Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<Input
+							id="project_admin_email"
+							label="Admin email"
+							type="text"
+							required
+							autocomplete={false}
+							bind:value={showModalTransferProject.email}
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingTransferProject}
+								height="h-10"
+								on:click={() => unshowModalTransferProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingTransferProject} height="h-10">
+								Transfer
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
+	{#if showModalDuplicateProject.show}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalDuplicateProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={duplicateProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Duplicate Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withRecords = !showModalDuplicateProject.withRecords)}
+							checked={showModalDuplicateProject.withRecords}
+							label="Duplicate records"
+							text="Copy all records to a new collection in a new project"
+						/>
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withFiles = !showModalDuplicateProject.withFiles)}
+							checked={showModalDuplicateProject.withFiles}
+							label="Duplicate files"
+							text="Copy all files to a new bucket in a new project"
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingDuplicateProject}
+								height="h-10"
+								on:click={() => unshowModalDuplicateProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingDuplicateProject} height="h-10">
+								Duplicate
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
 	{#if showModalRemoveProject}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveProject}
+			on:click|stopPropagation={() => unshowModalRemoveProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1092,10 +1287,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveProject}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveProject();
-							}}
+							on:click={() => unshowModalRemoveProject()}
 						>
 							Cancel
 						</Button>
@@ -1105,10 +1297,7 @@
 							loading={isLoadingRemoveProject}
 							height="h-10"
 							disable={projectNameRemove !== hyperbaseProject.data.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeProject();
-							}}
+							on:click={() => removeProject()}
 						>
 							Remove
 						</Button>
@@ -1122,7 +1311,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveBucket}
+			on:click|stopPropagation={() => unshowModalRemoveBucket()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1151,10 +1340,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveBucket}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveBucket();
-							}}
+							on:click={() => unshowModalRemoveBucket()}
 						>
 							Cancel
 						</Button>
@@ -1164,10 +1350,7 @@
 							loading={isLoadingRemoveBucket}
 							height="h-10"
 							disable={bucketNameRemove !== showModalRemoveBucket.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeBucket(showModalRemoveBucket.id);
-							}}
+							on:click={() => removeBucket(showModalRemoveBucket.id)}
 						>
 							Remove
 						</Button>
@@ -1181,7 +1364,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowFileOpt}
+			on:click|stopPropagation={() => unshowFileOpt()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1200,10 +1383,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveFile}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowFileOpt();
-							}}
+							on:click={() => unshowFileOpt()}
 						>
 							Cancel
 						</Button>
@@ -1212,10 +1392,7 @@
 							kind="danger"
 							loading={isLoadingRemoveFile}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								removeFile();
-							}}
+							on:click={() => removeFile()}
 						>
 							Remove
 						</Button>
@@ -1230,7 +1407,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalBucket}
+			on:click|stopPropagation={() => unshowModalBucket()}
 			class="fixed z-20 w-screen h-screen bg-black/20"
 		>
 			<form
@@ -1262,10 +1439,7 @@
 							kind="secondary"
 							disable={isLoadingAddEditBucket}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalBucket();
-							}}
+							on:click={() => unshowModalBucket()}
 							class="py-2 px-12"
 						>
 							Cancel

@@ -16,7 +16,7 @@
 			{:else}
 				<Square class="w-5 h-5" />
 			{/if}
-			<span class="texts-sm">{text}</span>
+			<span class="texts-sm text-left">{text}</span>
 		</button>
 	</div>
 </div>

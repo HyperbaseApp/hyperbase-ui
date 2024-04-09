@@ -33,6 +33,8 @@
 		convertTimestampToDatetimeLocal
 	} from '$lib/utils/converter';
 	import formatTokenRule from '$lib/utils/formatTokenRule';
+	import Send from '$lib/components/icon/Send.svelte';
+	import Archive from '$lib/components/icon/Archive.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
@@ -89,6 +91,8 @@
 
 	let isLoadingInit = true;
 	let isLoadingEditProject = false;
+	let isLoadingTransferProject = false;
+	let isLoadingDuplicateProject = false;
 	let isLoadingRemoveProject = false;
 	let isLoadingRefreshTokens = false;
 	let isLoadingRefreshRules = false;
@@ -100,6 +104,15 @@
 	let showModalEditProject = {
 		id: '',
 		name: ''
+	};
+	let showModalTransferProject = {
+		id: '',
+		email: ''
+	};
+	let showModalDuplicateProject = {
+		show: false,
+		withRecords: false,
+		withFiles: false
 	};
 	let showModalRemoveProject = false;
 	let showModalRemoveToken = {
@@ -161,6 +174,7 @@
 	};
 
 	onMount(() => {
+		console.log('HERE');
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
@@ -185,7 +199,7 @@
 
 			await hyperbaseProject.update(showModalEditProject.name);
 			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
-			unshowModalEditProject();
+			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
 			isLoadingEditProject = false;
@@ -197,10 +211,70 @@
 		}
 	}
 
-	function unshowModalEditProject() {
+	function unshowModalEditProject(force?: boolean) {
+		if (!force && isLoadingEditProject) return;
+
 		showModalEditProject = {
 			id: '',
 			name: ''
+		};
+	}
+
+	async function transferProject() {
+		try {
+			isLoadingTransferProject = true;
+
+			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			unshowModalTransferProject(true);
+			toast.success('Successfully transfer the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingTransferProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingTransferProject = false;
+			}
+		}
+	}
+
+	function unshowModalTransferProject(force?: boolean) {
+		if (!force && isLoadingTransferProject) return;
+
+		showModalTransferProject = {
+			id: '',
+			email: ''
+		};
+	}
+
+	async function duplicateProject() {
+		try {
+			isLoadingDuplicateProject = true;
+
+			await hyperbaseProject.duplicate(
+				showModalDuplicateProject.withFiles,
+				showModalDuplicateProject.withRecords
+			);
+			unshowModalDuplicateProject(true);
+			toast.success('Successfully duplicate the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingDuplicateProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingDuplicateProject = false;
+			}
+		}
+	}
+
+	function unshowModalDuplicateProject(force?: boolean) {
+		if (!force && isLoadingDuplicateProject) return;
+
+		showModalDuplicateProject = {
+			show: false,
+			withRecords: false,
+			withFiles: false
 		};
 	}
 
@@ -221,7 +295,9 @@
 		}
 	}
 
-	function unshowModalRemoveProject() {
+	function unshowModalRemoveProject(force?: boolean) {
+		if (!force && isLoadingRemoveProject) return;
+
 		projectNameRemove = '';
 		showModalRemoveProject = false;
 	}
@@ -264,6 +340,7 @@
 				const lowerB = b.name.toLocaleLowerCase();
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
+			if (selectedToken?.id) selectedToken = tokensData.find((t) => t.id === selectedToken?.id);
 			tokens = tokensData;
 
 			isLoadingRefreshTokens = false;
@@ -327,11 +404,11 @@
 			}
 
 			await hyperbaseProject.createToken({
-				name: tokenData.name,
+				name: tokenData.name.trim(),
 				allowAnonymous: tokenData.allowAnonymous,
 				expiredAt
 			});
-			unshowModalToken();
+			unshowModalToken(true);
 			toast.success('Successfully added a token');
 			await refreshTokens();
 
@@ -355,11 +432,11 @@
 
 			const hyperbaseToken = await hyperbaseProject.getToken(null, tokenData.id);
 			await hyperbaseToken.update({
-				name: tokenData.name,
+				name: tokenData.name.trim(),
 				allowAnonymous: tokenData.allowAnonymous,
 				expiredAt
 			});
-			unshowModalToken();
+			unshowModalToken(true);
 			toast.success('Successfully updated the token');
 			refreshTokens();
 
@@ -379,7 +456,7 @@
 			const hyperbaseToken = await hyperbaseProject.getToken(null, id);
 			await hyperbaseToken.delete();
 			selectedToken = undefined;
-			unshowModalRemoveToken();
+			unshowModalRemoveToken(true);
 			toast.success('Successfully removed the token');
 			refreshTokens();
 
@@ -392,7 +469,9 @@
 		}
 	}
 
-	function unshowModalRemoveToken() {
+	function unshowModalRemoveToken(force?: boolean) {
+		if (!force && isLoadingRemoveToken) return;
+
 		tokenNameRemove = '';
 		showModalRemoveToken = { id: '', name: '' };
 	}
@@ -411,10 +490,12 @@
 		tokenData = editTokenData;
 		showTokenOpt.id = '';
 		showModalToken = 'edit';
-		unshowAddRule();
+		unshowAddRule(true);
 	}
 
-	function unshowModalToken() {
+	function unshowModalToken(force?: boolean) {
+		if (!force && isLoadingAddEditToken) return;
+
 		tokenData = {
 			id: '',
 			name: '',
@@ -503,8 +584,11 @@
 			insertOne: boolean;
 			updateOne: 'all' | 'self_made' | 'none';
 			deleteOne: 'all' | 'self_made' | 'none';
-		}
+		},
+		force?: boolean
 	) {
+		if (!force && isLoadingEditRule) return;
+
 		showRuleOpt.id = showRuleOpt.id === rules.id ? '' : rules.id;
 		if (showRuleOpt.id.length > 0) {
 			showRuleOpt.action = 'option';
@@ -576,7 +660,9 @@
 		}
 	}
 
-	function unshowAddRule() {
+	function unshowAddRule(force?: boolean) {
+		if (!force && isLoadingAddRule) return;
+
 		showAddRuleData = {
 			show: false,
 			data: {
@@ -590,7 +676,9 @@
 		};
 	}
 
-	function unshowRuleOpt() {
+	function unshowRuleOpt(force?: boolean) {
+		if (!force && isLoadingRemoveRule) return;
+
 		showRuleOpt = {
 			id: '',
 			action: 'none',
@@ -629,7 +717,7 @@
 					showAddRuleData.data.deleteOne
 				);
 			}
-			unshowAddRule();
+			unshowAddRule(true);
 			toast.success('Successfully added a rule');
 			refreshRules();
 
@@ -668,7 +756,7 @@
 					showRuleOpt.editData.deleteOne
 				);
 			}
-			unshowRuleOpt();
+			unshowRuleOpt(true);
 			toast.success('Successfully updated the rule');
 			refreshRules();
 
@@ -691,7 +779,7 @@
 			if (rules.active === 'bucket') {
 				await hyperbaseToken.deleteOneBucketRule(showRuleOpt.id);
 			}
-			unshowRuleOpt();
+			unshowRuleOpt(true);
 			toast.success('Successfully removed the bucket');
 			refreshRules();
 
@@ -805,6 +893,35 @@
 										type="button"
 										on:click|stopPropagation={() => {
 											showProjectOpt = false;
+											showModalTransferProject = {
+												id: hyperbaseProject.data.id,
+												email: ''
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Send class="w-5 h-5" />
+										<span>Transfer</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
+											showModalDuplicateProject = {
+												show: true,
+												withFiles: false,
+												withRecords: false
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Copy class="w-5 h-5" />
+										<span>Duplicate</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
 											showModalRemoveProject = true;
 										}}
 										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
@@ -848,6 +965,12 @@
 							>
 								<DocumentLock class="w-8 h-8" />
 							</a>
+							<a
+								href="{base}/project/{$page.params.project_id}/logs"
+								class="block py-2.5 px-1 hover:bg-neutral-100"
+							>
+								<Archive class="w-8 h-8" />
+							</a>
 						</div>
 					</div>
 					<div class="mt-2 px-2 min-w-0 flex-1 flex flex-col">
@@ -855,10 +978,7 @@
 							type="button"
 							height="h-8"
 							class="text-sm"
-							on:click={(e) => {
-								e.stopPropagation();
-								showModalToken = 'add';
-							}}
+							on:click={() => (showModalToken = 'add')}
 						>
 							New Token
 						</Button>
@@ -929,9 +1049,7 @@
 		</div>
 		<div class="min-w-0 flex-1 flex flex-col">
 			<h2 class="px-2 font-bold">
-				Token{#if selectedToken}
-					&nbsp;
-					<span class="truncate">{selectedToken.name}</span>
+				Token{#if selectedToken}&nbsp;<span class="truncate">{selectedToken.name}</span>
 				{/if}
 			</h2>
 			{#if !isLoadingRefreshTokens}
@@ -979,9 +1097,9 @@
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">ID</th>
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Created At</th>
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Updated At</th>
-											<th class="py-1 px-2 sticky top-0 bg-white relative z-20"
-												>{rules.active[0].toUpperCase() + rules.active.slice(1)} Name</th
-											>
+											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+												{rules.active[0].toUpperCase() + rules.active.slice(1)} Name
+											</th>
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Find One</th>
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Find Many</th>
 											<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Insert One</th>
@@ -1100,7 +1218,7 @@
 														</button>
 														<button
 															type="button"
-															on:click|stopPropagation={unshowAddRule}
+															on:click|stopPropagation={() => unshowAddRule()}
 															class="block w-fit mx-auto"
 														>
 															<CloseCircle class="w-5 h-5" />
@@ -1125,7 +1243,7 @@
 														{collections.find((c) => c.id === rule.collection_id)?.name}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{#if showRuleOpt.action === 'edit'}
+														{#if showRuleOpt.id === rule.id && showRuleOpt.action === 'edit'}
 															<select
 																bind:value={showRuleOpt.editData.findOne}
 																class="border bg-transparent outline-none border-black"
@@ -1141,7 +1259,7 @@
 														{/if}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{#if showRuleOpt.action === 'edit'}
+														{#if showRuleOpt.id === rule.id && showRuleOpt.action === 'edit'}
 															<select
 																bind:value={showRuleOpt.editData.findMany}
 																class="border bg-transparent outline-none border-black"
@@ -1157,7 +1275,7 @@
 														{/if}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{#if showRuleOpt.action === 'edit'}
+														{#if showRuleOpt.id === rule.id && showRuleOpt.action === 'edit'}
 															<select
 																bind:value={showRuleOpt.editData.insertOne}
 																class="border bg-transparent outline-none border-black"
@@ -1170,7 +1288,7 @@
 														{/if}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{#if showRuleOpt.action === 'edit'}
+														{#if showRuleOpt.id === rule.id && showRuleOpt.action === 'edit'}
 															<select
 																bind:value={showRuleOpt.editData.updateOne}
 																class="border bg-transparent outline-none border-black"
@@ -1186,7 +1304,7 @@
 														{/if}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{#if showRuleOpt.action === 'edit'}
+														{#if showRuleOpt.id === rule.id && showRuleOpt.action === 'edit'}
 															<select
 																bind:value={showRuleOpt.editData.deleteOne}
 																class="border bg-transparent outline-none border-black"
@@ -1472,14 +1590,7 @@
 								{/if}
 							</p>
 							<div class="mt-4">
-								<Button
-									type="button"
-									height="h-10"
-									on:click={(e) => {
-										e.stopPropagation();
-										showModalToken = 'add';
-									}}
-								>
+								<Button type="button" height="h-10" on:click={() => (showModalToken = 'add')}>
 									Create a new token
 								</Button>
 							</div>
@@ -1498,7 +1609,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalEditProject}
+			on:click|stopPropagation={() => unshowModalEditProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1521,10 +1632,7 @@
 								kind="secondary"
 								disable={isLoadingEditProject}
 								height="h-10"
-								on:click={(e) => {
-									e.stopPropagation();
-									unshowModalEditProject();
-								}}
+								on:click={() => unshowModalEditProject()}
 							>
 								Cancel
 							</Button>
@@ -1536,11 +1644,99 @@
 		</div>
 	{/if}
 
+	{#if showModalTransferProject.id.length > 0}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalTransferProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={transferProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Transfer Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<Input
+							id="project_admin_email"
+							label="Admin email"
+							type="text"
+							required
+							autocomplete={false}
+							bind:value={showModalTransferProject.email}
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingTransferProject}
+								height="h-10"
+								on:click={() => unshowModalTransferProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingTransferProject} height="h-10">
+								Transfer
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
+	{#if showModalDuplicateProject.show}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalDuplicateProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={duplicateProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Duplicate Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withRecords = !showModalDuplicateProject.withRecords)}
+							checked={showModalDuplicateProject.withRecords}
+							label="Duplicate records"
+							text="Copy all records to a new collection in a new project"
+						/>
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withFiles = !showModalDuplicateProject.withFiles)}
+							checked={showModalDuplicateProject.withFiles}
+							label="Duplicate files"
+							text="Copy all files to a new bucket in a new project"
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingDuplicateProject}
+								height="h-10"
+								on:click={() => unshowModalDuplicateProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingDuplicateProject} height="h-10">
+								Duplicate
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
 	{#if showModalRemoveProject}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveProject}
+			on:click|stopPropagation={() => unshowModalRemoveProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1569,10 +1765,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveProject}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveProject();
-							}}
+							on:click={() => unshowModalRemoveProject()}
 						>
 							Cancel
 						</Button>
@@ -1582,10 +1775,7 @@
 							loading={isLoadingRemoveProject}
 							height="h-10"
 							disable={projectNameRemove !== hyperbaseProject.data.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeProject();
-							}}
+							on:click={() => removeProject()}
 						>
 							Remove
 						</Button>
@@ -1599,7 +1789,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveToken}
+			on:click|stopPropagation={() => unshowModalRemoveToken()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1628,10 +1818,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveToken}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveToken();
-							}}
+							on:click={() => unshowModalRemoveToken()}
 						>
 							Cancel
 						</Button>
@@ -1641,10 +1828,7 @@
 							loading={isLoadingRemoveToken}
 							height="h-10"
 							disable={tokenNameRemove !== showModalRemoveToken.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeToken(showModalRemoveToken.id);
-							}}
+							on:click={() => removeToken(showModalRemoveToken.id)}
 						>
 							Remove
 						</Button>
@@ -1658,7 +1842,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowRuleOpt}
+			on:click|stopPropagation={() => unshowRuleOpt()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1677,10 +1861,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveRule}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowRuleOpt();
-							}}
+							on:click={() => unshowRuleOpt()}
 						>
 							Cancel
 						</Button>
@@ -1689,10 +1870,7 @@
 							kind="danger"
 							loading={isLoadingRemoveRule}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								removeRule();
-							}}
+							on:click={() => removeRule()}
 						>
 							Remove
 						</Button>
@@ -1707,7 +1885,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalToken}
+			on:click|stopPropagation={() => unshowModalToken()}
 			class="fixed z-20 w-screen h-screen bg-black/20"
 		>
 			<form
@@ -1750,10 +1928,7 @@
 							kind="secondary"
 							disable={isLoadingAddEditToken}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalToken();
-							}}
+							on:click={() => unshowModalToken()}
 							class="py-2 px-12"
 						>
 							Cancel

@@ -27,6 +27,9 @@
 	import DocumentLock from '$lib/components/icon/DocumentLock.svelte';
 	import Folder from '$lib/components/icon/Folder.svelte';
 	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
+	import Send from '$lib/components/icon/Send.svelte';
+	import type { Pagination } from '$lib/types/pagination';
+	import Archive from '$lib/components/icon/Archive.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
@@ -35,10 +38,7 @@
 
 	let collections: Collection[] = [];
 	let records: {
-		pagination: {
-			count: number;
-			total: number;
-		};
+		pagination: Pagination;
 		data: { [field: string]: any }[];
 	} = {
 		pagination: {
@@ -66,6 +66,8 @@
 
 	let isLoadingInit = true;
 	let isLoadingEditProject = false;
+	let isLoadingTransferProject = false;
+	let isLoadingDuplicateProject = false;
 	let isLoadingRemoveProject = false;
 	let isLoadingRefreshCollections = false;
 	let isLoadingRefreshRecords = false;
@@ -79,6 +81,15 @@
 	let showModalEditProject = {
 		id: '',
 		name: ''
+	};
+	let showModalTransferProject = {
+		id: '',
+		email: ''
+	};
+	let showModalDuplicateProject = {
+		show: false,
+		withRecords: false,
+		withFiles: false
 	};
 	let showModalRemoveProject = false;
 	let showModalRemoveCollection = {
@@ -146,7 +157,7 @@
 
 			await hyperbaseProject.update(showModalEditProject.name.trim());
 			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
-			unshowModalEditProject();
+			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
 			isLoadingEditProject = false;
@@ -158,10 +169,70 @@
 		}
 	}
 
-	function unshowModalEditProject() {
+	function unshowModalEditProject(force?: boolean) {
+		if (!force && isLoadingEditProject) return;
+
 		showModalEditProject = {
 			id: '',
 			name: ''
+		};
+	}
+
+	async function transferProject() {
+		try {
+			isLoadingTransferProject = true;
+
+			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			unshowModalTransferProject(true);
+			toast.success('Successfully transfer the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingTransferProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingTransferProject = false;
+			}
+		}
+	}
+
+	function unshowModalTransferProject(force?: boolean) {
+		if (!force && isLoadingTransferProject) return;
+
+		showModalTransferProject = {
+			id: '',
+			email: ''
+		};
+	}
+
+	async function duplicateProject() {
+		try {
+			isLoadingDuplicateProject = true;
+
+			await hyperbaseProject.duplicate(
+				showModalDuplicateProject.withFiles,
+				showModalDuplicateProject.withRecords
+			);
+			unshowModalDuplicateProject(true);
+			toast.success('Successfully duplicate the project');
+			goto(`${base}/projects`, { replaceState: true });
+
+			isLoadingDuplicateProject = false;
+		} catch (err) {
+			const code = errorHandler(err);
+			if (code === 0) {
+				isLoadingDuplicateProject = false;
+			}
+		}
+	}
+
+	function unshowModalDuplicateProject(force?: boolean) {
+		if (!force && isLoadingDuplicateProject) return;
+
+		showModalDuplicateProject = {
+			show: false,
+			withRecords: false,
+			withFiles: false
 		};
 	}
 
@@ -182,7 +253,9 @@
 		}
 	}
 
-	function unshowModalRemoveProject() {
+	function unshowModalRemoveProject(force?: boolean) {
+		if (!force && isLoadingRemoveProject) return;
+
 		projectNameRemove = '';
 		showModalRemoveProject = false;
 	}
@@ -292,7 +365,7 @@
 				schemaFields,
 				optAuthColumnId: collectionData.optAuthColumnId
 			});
-			unshowModalCollection();
+			unshowModalCollection(true);
 			toast.success('Successfully added a collection');
 			await refreshCollections();
 
@@ -337,9 +410,18 @@
 				schemaFields,
 				optAuthColumnId: collectionData.optAuthColumnId
 			});
-			unshowModalCollection();
+			if (collectionData.id === selectedCollectionData.id) {
+				selectedCollectionData = {
+					id: selectedCollectionData.id,
+					name: collectionData.name.trim()
+				};
+			}
+			unshowModalCollection(true);
 			toast.success('Successfully updated the collection');
 			refreshCollections();
+			if (collectionData.id === selectedCollection?.data.id) {
+				selectedCollection = await hyperbaseProject.getCollection(null, selectedCollection.data.id);
+			}
 
 			isLoadingAddEditCollection = false;
 		} catch (err) {
@@ -357,7 +439,7 @@
 			const hyperbaseCollection = await hyperbaseProject.getCollection(null, id);
 			await hyperbaseCollection.delete();
 			selectedCollection = undefined;
-			unshowModalRemoveCollection();
+			unshowModalRemoveCollection(true);
 			toast.success('Successfully removed the collection');
 			selectedCollectionData = {
 				id: '',
@@ -375,7 +457,9 @@
 		}
 	}
 
-	function unshowModalRemoveCollection() {
+	function unshowModalRemoveCollection(force?: boolean) {
+		if (!force && isLoadingRemoveCollection) return;
+
 		collectionNameRemove = '';
 		showModalRemoveCollection = { id: '', name: '' };
 	}
@@ -408,7 +492,7 @@
 		collectionData = editCollectionData;
 		showCollectionOpt.id = '';
 		showModalCollection = 'edit';
-		unshowAddRecord();
+		unshowAddRecord(true);
 	}
 
 	function addSchemaField() {
@@ -469,7 +553,9 @@
 		collectionData.schemaFields = collectionData.schemaFields;
 	}
 
-	function unshowModalCollection() {
+	function unshowModalCollection(force?: boolean) {
+		if (!force && isLoadingAddEditCollection) return;
+
 		collectionData = {
 			id: '',
 			name: '',
@@ -502,10 +588,7 @@
 				isLoadingRefreshRecords = true;
 
 				const recordsData: {
-					pagination: {
-						count: number;
-						total: number;
-					};
+					pagination: Pagination;
 					data: {
 						[field: string]: any;
 					}[];
@@ -560,10 +643,7 @@
 			isLoadingLoadMoreRecords = true;
 
 			const recordsData: {
-				pagination: {
-					count: number;
-					total: number;
-				};
+				pagination: Pagination;
 				data: {
 					[field: string]: any;
 				}[];
@@ -624,6 +704,8 @@
 			[field: string]: any;
 		}
 	) {
+		if (isLoadingEditRecord) return;
+
 		showRecordOpt.id = showRecordOpt.id === record._id ? '' : record._id;
 		if (showRecordOpt.id.length > 0) {
 			showRecordOpt.action = 'option';
@@ -651,14 +733,18 @@
 		}
 	}
 
-	function unshowAddRecord() {
+	function unshowAddRecord(force?: boolean) {
+		if (!force && isLoadingAddRecord) return;
+
 		showAddRecordData = {
 			show: false,
 			data: {}
 		};
 	}
 
-	function unshowRecordOpt() {
+	function unshowRecordOpt(force?: boolean) {
+		if (!force && isLoadingRemoveRecord) return;
+
 		showRecordOpt = {
 			id: '',
 			action: 'none',
@@ -686,7 +772,7 @@
 				return;
 			}
 			await selectedCollection.insertOne(data);
-			unshowAddRecord();
+			unshowAddRecord(true);
 			toast.success('Successfully added a record');
 			refreshRecords(null);
 
@@ -720,7 +806,7 @@
 				return;
 			}
 			await selectedCollection.updateOneRecord(showRecordOpt.id, data);
-			unshowRecordOpt();
+			unshowRecordOpt(true);
 			toast.success('Successfully updated the record');
 			refreshRecords(null);
 
@@ -740,7 +826,7 @@
 			isLoadingRemoveRecord = true;
 
 			await selectedCollection.deleteOneRecord(showRecordOpt.id);
-			unshowRecordOpt();
+			unshowRecordOpt(true);
 			toast.success('Successfully removed the record');
 			refreshRecords(null);
 
@@ -912,6 +998,35 @@
 										type="button"
 										on:click|stopPropagation={() => {
 											showProjectOpt = false;
+											showModalTransferProject = {
+												id: hyperbaseProject.data.id,
+												email: ''
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Send class="w-5 h-5" />
+										<span>Transfer</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
+											showModalDuplicateProject = {
+												show: true,
+												withFiles: false,
+												withRecords: false
+											};
+										}}
+										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+									>
+										<Copy class="w-5 h-5" />
+										<span>Duplicate</span>
+									</button>
+									<button
+										type="button"
+										on:click|stopPropagation={() => {
+											showProjectOpt = false;
 											showModalRemoveProject = true;
 										}}
 										class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
@@ -955,6 +1070,12 @@
 							>
 								<DocumentLock class="w-8 h-8" />
 							</a>
+							<a
+								href="{base}/project/{$page.params.project_id}/logs"
+								class="block py-2.5 px-1 hover:bg-neutral-100"
+							>
+								<Archive class="w-8 h-8" />
+							</a>
 						</div>
 					</div>
 					<div class="mt-2 px-2 min-w-0 flex-1 flex flex-col">
@@ -962,10 +1083,7 @@
 							type="button"
 							height="h-8"
 							class="text-sm"
-							on:click={(e) => {
-								e.stopPropagation();
-								showModalCollection = 'add';
-							}}
+							on:click={() => (showModalCollection = 'add')}
 						>
 							New Collection
 						</Button>
@@ -1037,9 +1155,9 @@
 		</div>
 		<div class="min-w-0 flex-1 flex flex-col">
 			<h2 class="px-2 font-bold flex">
-				Collection{#if selectedCollectionData}
-					&nbsp;
-					<span class="truncate">{selectedCollectionData.name}</span>
+				Collection{#if selectedCollectionData}&nbsp;<span class="truncate">
+						{selectedCollectionData.name}
+					</span>
 				{/if}
 			</h2>
 			{#if !isLoadingRefreshCollections}
@@ -1184,7 +1302,7 @@
 															</button>
 															<button
 																type="button"
-																on:click|stopPropagation={unshowAddRecord}
+																on:click|stopPropagation={() => unshowAddRecord()}
 																class="block w-fit mx-auto"
 															>
 																<CloseCircle class="w-5 h-5" />
@@ -1377,14 +1495,7 @@
 								{/if}
 							</p>
 							<div class="mt-4">
-								<Button
-									type="button"
-									height="h-10"
-									on:click={(e) => {
-										e.stopPropagation();
-										showModalCollection = 'add';
-									}}
-								>
+								<Button type="button" height="h-10" on:click={() => (showModalCollection = 'add')}>
 									Create a new collection
 								</Button>
 							</div>
@@ -1403,7 +1514,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalEditProject}
+			on:click|stopPropagation={() => unshowModalEditProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1426,10 +1537,7 @@
 								kind="secondary"
 								disable={isLoadingEditProject}
 								height="h-10"
-								on:click={(e) => {
-									e.stopPropagation();
-									unshowModalEditProject();
-								}}
+								on:click={() => unshowModalEditProject()}
 							>
 								Cancel
 							</Button>
@@ -1441,11 +1549,99 @@
 		</div>
 	{/if}
 
+	{#if showModalTransferProject.id.length > 0}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalTransferProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={transferProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Transfer Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<Input
+							id="project_admin_email"
+							label="Admin email"
+							type="text"
+							required
+							autocomplete={false}
+							bind:value={showModalTransferProject.email}
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingTransferProject}
+								height="h-10"
+								on:click={() => unshowModalTransferProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingTransferProject} height="h-10">
+								Transfer
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
+	{#if showModalDuplicateProject.show}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			on:click|stopPropagation={() => unshowModalDuplicateProject()}
+			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
+		>
+			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
+				<form on:submit|preventDefault={duplicateProject}>
+					<div>
+						<p class="font-bold text-center text-2xl">Duplicate Project</p>
+					</div>
+					<div class="mt-8 space-y-6">
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withRecords = !showModalDuplicateProject.withRecords)}
+							checked={showModalDuplicateProject.withRecords}
+							label="Duplicate records"
+							text="Copy all records to a new collection in a new project"
+						/>
+						<InputCheckbox
+							on:click={() =>
+								(showModalDuplicateProject.withFiles = !showModalDuplicateProject.withFiles)}
+							checked={showModalDuplicateProject.withFiles}
+							label="Duplicate files"
+							text="Copy all files to a new bucket in a new project"
+						/>
+						<div class="flex gap-x-2">
+							<Button
+								type="button"
+								kind="secondary"
+								disable={isLoadingDuplicateProject}
+								height="h-10"
+								on:click={() => unshowModalDuplicateProject()}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" loading={isLoadingDuplicateProject} height="h-10">
+								Duplicate
+							</Button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	{/if}
+
 	{#if showModalRemoveProject}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveProject}
+			on:click|stopPropagation={() => unshowModalRemoveProject()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1474,10 +1670,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveProject}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveProject();
-							}}
+							on:click={() => unshowModalRemoveProject()}
 						>
 							Cancel
 						</Button>
@@ -1487,10 +1680,7 @@
 							loading={isLoadingRemoveProject}
 							height="h-10"
 							disable={projectNameRemove !== hyperbaseProject.data.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeProject();
-							}}
+							on:click={() => removeProject()}
 						>
 							Remove
 						</Button>
@@ -1504,7 +1694,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalRemoveCollection}
+			on:click|stopPropagation={() => unshowModalRemoveCollection()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1534,10 +1724,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveCollection}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalRemoveCollection();
-							}}
+							on:click={() => unshowModalRemoveCollection()}
 						>
 							Cancel
 						</Button>
@@ -1547,10 +1734,7 @@
 							loading={isLoadingRemoveCollection}
 							height="h-10"
 							disable={collectionNameRemove !== showModalRemoveCollection.name}
-							on:click={(e) => {
-								e.stopPropagation();
-								removeCollection(showModalRemoveCollection.id);
-							}}
+							on:click={() => removeCollection(showModalRemoveCollection.id)}
 						>
 							Remove
 						</Button>
@@ -1564,7 +1748,7 @@
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowRecordOpt}
+			on:click|stopPropagation={() => unshowRecordOpt()}
 			class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -1583,10 +1767,7 @@
 							kind="secondary"
 							disable={isLoadingRemoveRecord}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowRecordOpt();
-							}}
+							on:click={() => unshowRecordOpt()}
 						>
 							Cancel
 						</Button>
@@ -1595,10 +1776,7 @@
 							kind="danger"
 							loading={isLoadingRemoveRecord}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								removeRecord();
-							}}
+							on:click={() => removeRecord()}
 						>
 							Remove
 						</Button>
@@ -1613,7 +1791,7 @@
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 		<div
-			on:click|stopPropagation={unshowModalCollection}
+			on:click|stopPropagation={() => unshowModalCollection()}
 			class="fixed z-20 w-screen h-screen bg-black/20"
 		>
 			<form
@@ -1809,10 +1987,7 @@
 							kind="secondary"
 							disable={isLoadingAddEditCollection}
 							height="h-10"
-							on:click={(e) => {
-								e.stopPropagation();
-								unshowModalCollection();
-							}}
+							on:click={() => unshowModalCollection()}
 							class="py-2 px-12"
 						>
 							Cancel

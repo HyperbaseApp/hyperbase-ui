@@ -344,10 +344,39 @@ export class HyperbaseProject {
 	}
 
 	async update(name: string) {
-		await this.#api('', {
+		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+
+		this.#_data = res.data;
+
+		return res.data;
+	}
+
+	async transfer(admin_email: string) {
+		await this.#api('/transfer', {
+			method: 'POST',
+			body: JSON.stringify({
+				admin_email
+			}),
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+	}
+
+	async duplicate(with_records: boolean, with_files: boolean) {
+		await this.#api('/duplicate', {
+			method: 'POST',
+			body: JSON.stringify({
+				with_records,
+				with_files
 			}),
 			headers: {
 				'content-type': 'application/json'
@@ -469,6 +498,31 @@ export class HyperbaseProject {
 		return res.data;
 	}
 
+	async getManyLogs(beforeId?: string, limit?: number) {
+		let query = '';
+		if (beforeId) {
+			if (query) {
+				query += '&';
+			} else {
+				query += '?';
+			}
+			query += `before_id=${beforeId}`;
+		}
+		if (limit) {
+			if (query) {
+				query += '&';
+			} else {
+				query += '?';
+			}
+			query += `limit=${limit}`;
+		}
+		const res = await this.#api(`/logs${query}`, {
+			method: 'GET'
+		});
+
+		return res;
+	}
+
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
 			`${this.#_hyperbase.baseUrl}/api/rest/project/${this.#_data.id}${input}`,
@@ -514,7 +568,7 @@ export class HyperbaseCollection {
 		};
 		optAuthColumnId: boolean;
 	}) {
-		await this.#api('', {
+		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name: data.name,
@@ -525,6 +579,10 @@ export class HyperbaseCollection {
 				'content-type': 'application/json'
 			}
 		});
+
+		this.#_data = res.data;
+
+		return res.data;
 	}
 
 	async delete() {
@@ -686,7 +744,7 @@ export class HyperbaseBucket {
 	}
 
 	async update(data: { name: string }) {
-		await this.#api('', {
+		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name: data.name
@@ -695,6 +753,10 @@ export class HyperbaseBucket {
 				'content-type': 'application/json'
 			}
 		});
+
+		this.#_data = res.data;
+
+		return res.data;
 	}
 
 	async delete() {
@@ -747,15 +809,15 @@ export class HyperbaseBucket {
 		});
 	}
 
-	async findManyFiles(abortSignal: AbortSignal | null, afterId?: string, limit?: number) {
+	async findManyFiles(abortSignal: AbortSignal | null, beforeId?: string, limit?: number) {
 		let query = '';
-		if (afterId) {
+		if (beforeId) {
 			if (query) {
 				query += '&';
 			} else {
 				query += '?';
 			}
-			query += `after_id=${afterId}`;
+			query += `before_id=${beforeId}`;
 		}
 		if (limit) {
 			if (query) {
@@ -810,7 +872,7 @@ export class HyperbaseToken {
 	}
 
 	async update(data: { name?: string; allowAnonymous?: boolean; expiredAt: string | null }) {
-		await this.#api('', {
+		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name: data.name,
@@ -821,6 +883,10 @@ export class HyperbaseToken {
 				'content-type': 'application/json'
 			}
 		});
+
+		this.#_data = res.data;
+
+		return res.data;
 	}
 
 	async delete() {
