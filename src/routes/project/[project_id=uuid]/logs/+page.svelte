@@ -16,7 +16,7 @@
 	import Settings from '$lib/components/icon/Settings.svelte';
 	import Trash from '$lib/components/icon/Trash.svelte';
 	import Warning from '$lib/components/icon/Warning.svelte';
-	import type { HyperbaseProject } from '$lib/hyperbase/hyperbase';
+	import type { HyperbaseLog, HyperbaseProject } from '$lib/hyperbase/hyperbase';
 	import type Hyperbase from '$lib/hyperbase/hyperbase';
 	import type { Log } from '$lib/types/log';
 	import type { Pagination } from '$lib/types/pagination';
@@ -27,6 +27,7 @@
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
+	let hyperbaseLog: HyperbaseLog;
 
 	let logs: {
 		pagination: Pagination;
@@ -39,6 +40,7 @@
 		data: []
 	};
 	let projectNameRemove = '';
+	let listenChangeLogState: 'off' | 'error' | 'active' = 'off';
 
 	let isLoadingInit = true;
 	let isLoadingEditProject = false;
@@ -68,6 +70,7 @@
 			try {
 				const projectId = $page.params.project_id;
 				hyperbaseProject = await hyperbase.getProject(projectId);
+				hyperbaseLog = hyperbaseProject.getLog();
 				await refreshLogs();
 
 				isLoadingInit = false;
@@ -234,6 +237,49 @@
 		}
 	}
 
+	async function toggleRealtimeLog() {
+		if (listenChangeLogState !== 'off') {
+			stopRealtimeRecord();
+			refreshLogs();
+			return;
+		}
+
+		try {
+			await refreshLogs();
+			hyperbaseLog.subscribe({
+				onOpenCallback: () => (listenChangeLogState = 'active'),
+				onMessageCallback: (ev) => {
+					const parsedData = JSON.parse(ev.data);
+					const data = parsedData.data;
+					switch (parsedData.kind) {
+						case 'insert_one':
+							logs = {
+								pagination: {
+									count: logs.pagination.count + 1,
+									total: logs.pagination.total + 1
+								},
+								data: [data, ...logs.data]
+							};
+							break;
+						case 'update_one':
+							break;
+						case 'delete_one':
+							break;
+					}
+				},
+				onErrorCallback: () => (listenChangeLogState = 'error'),
+				onCloseCallback: () => (listenChangeLogState = 'off')
+			});
+		} catch (err) {
+			errorHandler(err);
+		}
+	}
+
+	function stopRealtimeRecord() {
+		hyperbaseLog.unsubscribe();
+		listenChangeLogState = 'off';
+	}
+
 	function copyTextToClipboard(text: string) {
 		copyText(text);
 		toast.success('Successfully copied to the clipboard');
@@ -368,44 +414,62 @@
 		<div class="min-w-0 flex-1 flex flex-col">
 			<h2 class="px-2 font-bold">Log</h2>
 			{#if !isLoadingRefreshLogs}
-				<div class="mt-2 flex-1 overflow-x-auto">
-					<table>
-						<thead>
-							<tr>
-								<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Timestamp</th>
-								<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Kind</th>
-								<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Message</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each logs.data as log}
-								<tr class="hover:bg-neutral-100">
-									<td class="py-1 px-2 text-sm">
-										{new Date(log.created_at).toLocaleString()}
-									</td>
-									<td class="py-1 px-2 text-sm">
-										{log.kind}
-									</td>
-									<td class="py-1 px-2 text-sm">
-										{log.message}
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-					{#if logs.pagination.count < logs.pagination.total}
+				<div class="min-h-0 mt-2 flex-1 flex flex-col">
+					<div class="px-2 flex gap-x-2 items-center">
 						<button
 							type="button"
-							on:click|stopPropagation={loadMoreLogs}
-							disabled={isLoadingLoadMoreLogs}
-							class="block w-fit my-4 py-2 px-4 flex items-center gap-x-2 mx-auto border border-black rounded text-sm"
+							on:click|stopPropagation={toggleRealtimeLog}
+							class="block w-fit px-4 py-1 flex items-center gap-x-1.5 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
 						>
-							{#if isLoadingLoadMoreLogs}
-								<Loading class="w-5 h-5 animate-spin" />
-							{/if}
-							Load more
+							<div
+								class="rounded-full w-2 h-2 {listenChangeLogState === 'active'
+									? 'bg-green-500'
+									: listenChangeLogState === 'error'
+										? 'bg-yellow-500'
+										: 'bg-red-500'}"
+							/>
+							Realtime
 						</button>
-					{/if}
+					</div>
+					<div class="mt-2 flex-1 overflow-x-auto">
+						<table>
+							<thead>
+								<tr>
+									<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Timestamp</th>
+									<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Kind</th>
+									<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Message</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each logs.data as log}
+									<tr class="hover:bg-neutral-100">
+										<td class="py-1 px-2 text-sm">
+											{new Date(log.created_at).toLocaleString()}
+										</td>
+										<td class="py-1 px-2 text-sm">
+											{log.kind}
+										</td>
+										<td class="py-1 px-2 text-sm">
+											{log.message}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+						{#if logs.pagination.count < logs.pagination.total}
+							<button
+								type="button"
+								on:click|stopPropagation={loadMoreLogs}
+								disabled={isLoadingLoadMoreLogs}
+								class="block w-fit my-4 py-2 px-4 flex items-center gap-x-2 mx-auto border border-black rounded text-sm"
+							>
+								{#if isLoadingLoadMoreLogs}
+									<Loading class="w-5 h-5 animate-spin" />
+								{/if}
+								Load more
+							</button>
+						{/if}
+					</div>
 				</div>
 			{:else}
 				<div class="flex-1 flex flex-col items-center justify-center">

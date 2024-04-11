@@ -70,7 +70,7 @@ export default class Hyperbase {
 					this.#_isReady.set(true);
 
 					const decodedJwt = jwtDecode<AuthTokenData>(loadToken);
-					if (decodedJwt.kind !== 'Admin') {
+					if (!decodedJwt.id.Admin && decodedJwt.id.Token) {
 						throw 'Must signin using admin account';
 					}
 
@@ -521,6 +521,10 @@ export class HyperbaseProject {
 		});
 
 		return res;
+	}
+
+	getLog() {
+		return new HyperbaseLog(this);
 	}
 
 	async #api(input: string, init: RequestInit) {
@@ -1044,6 +1048,106 @@ export class HyperbaseToken {
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
 			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/token/${this.#_data.id}${input}`,
+			{
+				...init,
+				headers: {
+					...init.headers,
+					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
+				}
+			}
+		);
+		const resJson = await res.json();
+		if (res.status.toString()[0] != '2') {
+			throw resJson.error;
+		}
+		return resJson;
+	}
+}
+
+export class HyperbaseLog {
+	#_hyperbaseProject: HyperbaseProject;
+	#_socket?: WebSocket;
+
+	constructor(hyperbaseProject: HyperbaseProject) {
+		this.#_hyperbaseProject = hyperbaseProject;
+	}
+
+	async findManyLogs(beforeId?: string, limit?: number) {
+		let query = '';
+		if (beforeId) {
+			if (query) {
+				query += '&';
+			} else {
+				query += '?';
+			}
+			query += `before_id=${beforeId}`;
+		}
+		if (limit) {
+			if (query) {
+				query += '&';
+			} else {
+				query += '?';
+			}
+			query += `limit=${limit}`;
+		}
+		const res = await this.#api(query, {
+			method: 'GET'
+		});
+
+		return res;
+	}
+
+	async subscribe(callbacks?: {
+		onOpenCallback?: (ev: Event) => void;
+		onMessageCallback?: (ev: MessageEvent) => void;
+		onErrorCallback?: (ev: Event) => void;
+		onCloseCallback?: (ev: CloseEvent) => void;
+	}) {
+		if (this.#_socket) {
+			this.unsubscribe();
+		}
+
+		let onOpenCallback, onMessageCallback, onErrorCallback, onCloseCallback;
+
+		if (callbacks) {
+			({ onOpenCallback, onMessageCallback, onErrorCallback, onCloseCallback } = callbacks);
+		}
+
+		this.#_socket = new WebSocket(
+			`${this.#_hyperbaseProject.hyperbase.baseWsUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
+		);
+
+		if (onOpenCallback) {
+			this.#_socket.addEventListener('open', onOpenCallback);
+		}
+
+		if (onMessageCallback) {
+			this.#_socket.addEventListener('message', onMessageCallback);
+		}
+
+		if (onErrorCallback) {
+			this.#_socket.addEventListener('error', onErrorCallback);
+		}
+
+		if (onCloseCallback) {
+			this.#_socket.addEventListener('close', onCloseCallback);
+		}
+	}
+
+	async unsubscribe(close?: { code?: number; reason?: string }) {
+		let code, reason;
+
+		if (close) {
+			({ code, reason } = close);
+		}
+
+		this.#_socket?.close(code, reason);
+		this.#_socket = undefined;
+	}
+
+	async #api(input: string, init: RequestInit) {
+		const res = await fetch(
+			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs${input}`,
 			{
 				...init,
 				headers: {

@@ -792,7 +792,7 @@
 			isLoadingEditRecord = true;
 
 			const editData = { ...showRecordOpt.editData };
-			delete editData['_id'];
+			delete editData._id;
 			const { data, error } = formatSchemaFieldData(
 				editData,
 				selectedCollection.data.schema_fields
@@ -1233,7 +1233,7 @@
 														<input
 															type="text"
 															size="1"
-															bind:value={showAddRecordData.data['_created_by']}
+															bind:value={showAddRecordData.data._created_by}
 															placeholder="Leave empty to auto-generated"
 															class="w-full py-px px-1 border border-black bg-transparent outline-none"
 														/>

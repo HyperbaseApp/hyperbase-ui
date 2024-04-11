@@ -1,9 +1,6 @@
 export interface AuthTokenData {
-	id: string;
-	kind: 'Admin' | 'User' | 'UserAnonymous';
-	user?: {
-		collection_id: string;
-		id: string;
+	id: {
+		[kind: string]: string;
 	};
 	exp: number;
 }
