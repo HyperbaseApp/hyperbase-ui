@@ -6,16 +6,20 @@ export interface Collection {
 	name: string;
 	schema_fields: SchemaField;
 	opt_auth_column_id: boolean;
+	opt_ttl?: number;
 }
 
 export interface SchemaField {
-	[field: string]: {
-		kind: SchemaFieldKind;
-		required: boolean;
-		indexed: boolean;
-		unique: boolean;
-		auth_column: boolean;
-	};
+	[field: string]: SchemaFieldProps;
+}
+
+export interface SchemaFieldProps {
+	kind: '' | SchemaFieldKind;
+	required: boolean;
+	indexed: boolean;
+	unique: boolean;
+	auth_column: boolean;
+	hidden: boolean;
 }
 
 export type SchemaFieldKind =

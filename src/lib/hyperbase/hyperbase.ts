@@ -1,7 +1,7 @@
 import type { Admin } from '$lib/types/admin';
 import type { AuthTokenData } from '$lib/types/authTokenData';
 import type { Bucket } from '$lib/types/bucket';
-import type { Collection } from '$lib/types/collection';
+import type { Collection, SchemaFieldProps } from '$lib/types/collection';
 import type { Project } from '$lib/types/project';
 import type { Token } from '$lib/types/token';
 import { jwtDecode } from 'jwt-decode';
@@ -420,21 +420,18 @@ export class HyperbaseProject {
 	async createCollection(data: {
 		name: string;
 		schemaFields: {
-			[field: string]: {
-				kind: string;
-				required?: boolean;
-				indexed?: boolean;
-				auth_column?: boolean;
-			};
+			[field: string]: SchemaFieldProps;
 		};
 		optAuthColumnId: boolean;
+		optTTL: number | null;
 	}) {
 		const res = await this.#api(`/collection`, {
 			method: 'POST',
 			body: JSON.stringify({
 				name: data.name,
 				schema_fields: data.schemaFields,
-				opt_auth_column_id: data.optAuthColumnId
+				opt_auth_column_id: data.optAuthColumnId,
+				opt_ttl: data.optTTL
 			}),
 			headers: {
 				'content-type': 'application/json'
@@ -444,11 +441,12 @@ export class HyperbaseProject {
 		return res.data;
 	}
 
-	async createBucket(data: { name: string }) {
+	async createBucket(data: { name: string; optTTL: number | null }) {
 		const res = await this.#api(`/bucket`, {
 			method: 'POST',
 			body: JSON.stringify({
-				name: data.name
+				name: data.name,
+				opt_ttl: data.optTTL
 			}),
 			headers: {
 				'content-type': 'application/json'
@@ -563,21 +561,18 @@ export class HyperbaseCollection {
 	async update(data: {
 		name: string;
 		schemaFields: {
-			[field: string]: {
-				kind: string;
-				required?: boolean;
-				indexed?: boolean;
-				auth_column?: boolean;
-			};
+			[field: string]: SchemaFieldProps;
 		};
 		optAuthColumnId: boolean;
+		optTTL: number | null;
 	}) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
 				name: data.name,
 				schema_fields: data.schemaFields,
-				opt_auth_column_id: data.optAuthColumnId
+				opt_auth_column_id: data.optAuthColumnId,
+				opt_ttl: data.optTTL
 			}),
 			headers: {
 				'content-type': 'application/json'
@@ -747,11 +742,12 @@ export class HyperbaseBucket {
 		this.#_data = bucket;
 	}
 
-	async update(data: { name: string }) {
+	async update(data: { name: string; optTTL: number | null }) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
-				name: data.name
+				name: data.name,
+				opt_ttl: data.optTTL
 			}),
 			headers: {
 				'content-type': 'application/json'

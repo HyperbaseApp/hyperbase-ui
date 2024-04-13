@@ -1,7 +1,12 @@
 <script lang="ts">
 	import type { HyperbaseCollection, HyperbaseProject } from '$lib/hyperbase/hyperbase';
 	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import type { Collection, SchemaField, SchemaFieldKind } from '$lib/types/collection';
+	import type {
+		Collection,
+		SchemaField,
+		SchemaFieldKind,
+		SchemaFieldProps
+	} from '$lib/types/collection';
 	import { getContext, onMount } from 'svelte';
 	import toast from 'svelte-french-toast';
 	import { page } from '$app/stores';
@@ -57,7 +62,8 @@
 		id: '',
 		name: '',
 		schemaFields: [],
-		optAuthColumnId: false
+		optAuthColumnId: false,
+		optTTL: ''
 	};
 	let supportedSchemaFields: string[];
 	let projectNameRemove = '';
@@ -353,7 +359,8 @@
 				required: field.required,
 				indexed: field.indexed,
 				unique: field.unique,
-				auth_column: field.authColumn
+				auth_column: field.authColumn,
+				hidden: field.hidden
 			};
 		}
 
@@ -363,7 +370,8 @@
 			await hyperbaseProject.createCollection({
 				name: collectionData.name.trim(),
 				schemaFields,
-				optAuthColumnId: collectionData.optAuthColumnId
+				optAuthColumnId: collectionData.optAuthColumnId,
+				optTTL: collectionData.optTTL ? Number(collectionData.optTTL) : null
 			});
 			unshowModalCollection(true);
 			toast.success('Successfully added a collection');
@@ -380,13 +388,7 @@
 
 	async function editCollection() {
 		let schemaFields: {
-			[field: string]: {
-				kind: string;
-				required?: boolean;
-				indexed?: boolean;
-				unique?: boolean;
-				auth_column?: boolean;
-			};
+			[field: string]: SchemaFieldProps;
 		} = {};
 		for (const field of collectionData.schemaFields) {
 			if (field._internal.invalidName !== 'none') {
@@ -397,7 +399,8 @@
 				required: field.required,
 				indexed: field.indexed,
 				unique: field.unique,
-				auth_column: field.authColumn
+				auth_column: field.authColumn,
+				hidden: field.hidden
 			};
 		}
 
@@ -405,10 +408,12 @@
 			isLoadingAddEditCollection = true;
 
 			const hyperbaseCollection = await hyperbaseProject.getCollection(null, collectionData.id);
+			console.log(collectionData);
 			await hyperbaseCollection.update({
 				name: collectionData.name.trim(),
 				schemaFields,
-				optAuthColumnId: collectionData.optAuthColumnId
+				optAuthColumnId: collectionData.optAuthColumnId,
+				optTTL: collectionData.optTTL ? Number(collectionData.optTTL) : null
 			});
 			if (collectionData.id === selectedCollectionData.id) {
 				selectedCollectionData = {
@@ -472,7 +477,8 @@
 			id: editCollection.id,
 			name: editCollection.name,
 			schemaFields: [],
-			optAuthColumnId: editCollection.opt_auth_column_id
+			optAuthColumnId: editCollection.opt_auth_column_id,
+			optTTL: editCollection.opt_ttl?.toString() ?? ''
 		};
 		for (const [field, props] of Object.entries(editCollection.schema_fields)) {
 			editCollectionData.schemaFields.push({
@@ -482,6 +488,7 @@
 				indexed: props.indexed,
 				unique: props.unique,
 				authColumn: props.auth_column,
+				hidden: props.hidden,
 				_internal: {
 					invalidName: 'none',
 					invalidKind: false
@@ -515,6 +522,7 @@
 				indexed: false,
 				unique: false,
 				authColumn: false,
+				hidden: false,
 				_internal: {
 					invalidName: 'none',
 					invalidKind: true
@@ -560,7 +568,8 @@
 			id: '',
 			name: '',
 			schemaFields: [],
-			optAuthColumnId: false
+			optAuthColumnId: false,
+			optTTL: ''
 		};
 		showSchemaFieldOpt.idx = -1;
 		showModalCollection = 'none';
@@ -945,12 +954,14 @@
 			indexed: boolean;
 			unique: boolean;
 			authColumn: boolean;
+			hidden: boolean;
 			_internal: {
 				invalidName: 'none' | 'exists' | 'format';
 				invalidKind: boolean;
 			};
 		}[];
 		optAuthColumnId: boolean;
+		optTTL: string;
 	}
 </script>
 
@@ -1214,6 +1225,12 @@
 														<span class="font-normal text-sm text-gray-500">uuid</span>
 													</div>
 												</th>
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
+													<div class="flex items-center gap-x-2">
+														<span>_updated_at</span>
+														<span class="font-normal text-sm text-gray-500">timestamp</span>
+													</div>
+												</th>
 												{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
 													<th class="py-1 px-2 sticky top-0 bg-white relative z-20">
 														<div class="flex items-center gap-x-2">
@@ -1238,6 +1255,7 @@
 															class="w-full py-px px-1 border border-black bg-transparent outline-none"
 														/>
 													</td>
+													<td class="py-1 px-2 text-sm text-gray-500">Auto-generated</td>
 													{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
 														<td class="py-1 px-2 text-sm">
 															{#if props.kind === 'boolean'}
@@ -1327,6 +1345,9 @@
 														{:else}
 															<span>{record._created_by}</span>
 														{/if}
+													</td>
+													<td class="py-1 px-2 text-sm">
+														{record._updated_at}
 													</td>
 													{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
 														<td class="py-1 px-2 text-sm">
@@ -1842,6 +1863,13 @@
 												<Settings class="w-5 h-5 mx-auto text-black/30" />
 											</td>
 										</tr>
+										<tr>
+											<td class="p-1">_updated_at</td>
+											<td class="p-1">timestamp</td>
+											<td class="p-1">
+												<Settings class="w-5 h-5 mx-auto text-black/30" />
+											</td>
+										</tr>
 										{#each collectionData.schemaFields as _, i}
 											<tr>
 												<td class="p-1">
@@ -1948,6 +1976,19 @@
 															</button>
 															<button
 																type="button"
+																on:click|stopPropagation={() =>
+																	(collectionData.schemaFields[i].hidden =
+																		!collectionData.schemaFields[i].hidden)}
+																class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+															>
+																{#if collectionData.schemaFields[i].hidden}
+																	<Checkbox class="w-5 h-5" />
+																{:else}
+																	<Square class="w-5 h-5" />
+																{/if} <span>Hidden</span>
+															</button>
+															<button
+																type="button"
 																on:click|stopPropagation={() => removeSchemaField(i)}
 																class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
 															>
@@ -1978,6 +2019,17 @@
 								checked={collectionData.optAuthColumnId}
 								label="Authentication"
 								text="Using the _id field to authenticate MQTT publishers"
+							/>
+						</div>
+						<div class="mt-6">
+							<Input
+								id="ttl"
+								label="Time-to-live"
+								type="text"
+								bind:value={collectionData.optTTL}
+								validateInput={(val) => !isNaN(Number(val))}
+								autocomplete={false}
+								suffix="seconds"
 							/>
 						</div>
 					</div>

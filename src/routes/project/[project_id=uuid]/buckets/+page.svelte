@@ -56,7 +56,8 @@
 	let selectedBucket: HyperbaseBucket | undefined = undefined;
 	let bucketData: BucketData = {
 		id: '',
-		name: ''
+		name: '',
+		optTTL: ''
 	};
 	let inputFile: HTMLInputElement;
 	let projectNameRemove = '';
@@ -382,7 +383,8 @@
 			isLoadingAddEditBucket = true;
 
 			await hyperbaseProject.createBucket({
-				name: bucketData.name.trim()
+				name: bucketData.name.trim(),
+				optTTL: bucketData.optTTL ? Number(bucketData.optTTL) : null
 			});
 			unshowModalBucket(true);
 			toast.success('Successfully added a bucket');
@@ -403,7 +405,8 @@
 
 			const hyperbaseBucket = await hyperbaseProject.getBucket(null, bucketData.id);
 			await hyperbaseBucket.update({
-				name: bucketData.name.trim()
+				name: bucketData.name.trim(),
+				optTTL: bucketData.optTTL ? Number(bucketData.optTTL) : null
 			});
 			if (bucketData.id === selectedBucketData.id) {
 				selectedBucketData = {
@@ -465,7 +468,8 @@
 
 		let editBucketData: BucketData = {
 			id: editBucket.id,
-			name: editBucket.name
+			name: editBucket.name,
+			optTTL: editBucket.opt_ttl ? editBucket.opt_ttl.toString() : ''
 		};
 
 		bucketData = editBucketData;
@@ -479,7 +483,8 @@
 
 		bucketData = {
 			id: '',
-			name: ''
+			name: '',
+			optTTL: ''
 		};
 		showSchemaFieldOpt.idx = -1;
 		showModalBucket = 'none';
@@ -697,6 +702,7 @@
 	interface BucketData {
 		id: string;
 		name: string;
+		optTTL: string;
 	}
 </script>
 
@@ -1430,6 +1436,17 @@
 								required
 								autocomplete={false}
 								bind:value={bucketData.name}
+							/>
+						</div>
+						<div class="mt-6">
+							<Input
+								id="ttl"
+								label="Time-to-live"
+								type="text"
+								bind:value={bucketData.optTTL}
+								validateInput={(val) => !isNaN(Number(val))}
+								autocomplete={false}
+								suffix="seconds"
 							/>
 						</div>
 					</div>

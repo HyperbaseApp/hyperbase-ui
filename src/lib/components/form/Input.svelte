@@ -10,6 +10,8 @@
 	export let pattern: string | undefined = undefined;
 	export let inputTitle: string | undefined = undefined;
 	export let autocomplete = true;
+	export let suffix: string | undefined = undefined;
+	export let validateInput: ((val: string) => boolean) | undefined = undefined;
 </script>
 
 <div class="bg-gray-200 focus-within:bg-gray-300 rounded">
@@ -21,15 +23,26 @@
 			{/if}
 		</label>
 	{/if}
-	<input
-		{id}
-		{type}
-		{required}
-		{pattern}
-		title={inputTitle}
-		autocomplete={autocomplete ? 'on' : 'off'}
-		on:change={(e) => (value = e.currentTarget.value)}
-		{value}
-		class="block w-full pt-1 pb-2 px-4 bg-transparent text-sm outline-none"
-	/>
+	<div class="pt-1 pb-2 px-4 flex items-center gap-x-1 text-sm">
+		<input
+			{id}
+			{type}
+			{required}
+			{pattern}
+			title={inputTitle}
+			autocomplete={autocomplete ? 'on' : 'off'}
+			on:input={(e) => {
+				if (validateInput && !validateInput(e.currentTarget.value)) {
+					e.currentTarget.value = value;
+					return;
+				}
+				value = e.currentTarget.value;
+			}}
+			{value}
+			class="block w-full bg-transparent outline-none"
+		/>
+		{#if suffix}
+			<span>{suffix}</span>
+		{/if}
+	</div>
 </div>

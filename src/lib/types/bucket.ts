@@ -5,4 +5,5 @@ export interface Bucket {
 	project_id: string;
 	name: string;
 	path: string;
+	opt_ttl?: number;
 }
