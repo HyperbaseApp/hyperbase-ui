@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { HyperbaseProject, HyperbaseToken } from '$lib/hyperbase/hyperbase';
-	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import type { Token } from '$lib/types/token';
-	import type { Collection } from '$lib/types/collection';
-	import type { Bucket } from '$lib/types/bucket';
 	import { getContext, onMount } from 'svelte';
 	import toast from 'svelte-french-toast';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import type { HyperbaseProject, HyperbaseToken } from '$lib/hyperbase/hyperbase';
+	import type Hyperbase from '$lib/hyperbase/hyperbase';
+	import type { Token } from '$lib/types/token';
+	import type { Collection } from '$lib/types/collection';
+	import type { Bucket } from '$lib/types/bucket';
 	import Copy from '$lib/components/icon/Copy.svelte';
 	import Button from '$lib/components/button/Button.svelte';
 	import copyText from '$lib/utils/copyText';
@@ -178,7 +178,7 @@
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
-				hyperbaseProject = await hyperbase.getProject(projectId);
+				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				refreshCollections();
 				refreshBuckets();
 				refreshTokens();
@@ -197,8 +197,8 @@
 		try {
 			isLoadingEditProject = true;
 
-			await hyperbaseProject.update(showModalEditProject.name);
-			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
+			await hyperbaseProject.update({ name: showModalEditProject.name });
+			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
@@ -224,7 +224,9 @@
 		try {
 			isLoadingTransferProject = true;
 
-			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			await hyperbaseProject.transfer({
+				adminEmail: showModalTransferProject.email.toLowerCase().trim()
+			});
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -251,10 +253,10 @@
 		try {
 			isLoadingDuplicateProject = true;
 
-			await hyperbaseProject.duplicate(
-				showModalDuplicateProject.withFiles,
-				showModalDuplicateProject.withRecords
-			);
+			await hyperbaseProject.duplicate({
+				withRecords: showModalDuplicateProject.withRecords,
+				withFiles: showModalDuplicateProject.withFiles
+			});
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -430,7 +432,7 @@
 				expiredAt = convertDatetimeLocalToTimestamp(tokenData.expiredAt);
 			}
 
-			const hyperbaseToken = await hyperbaseProject.getToken(null, tokenData.id);
+			const hyperbaseToken = await hyperbaseProject.getToken(null, { id: tokenData.id });
 			await hyperbaseToken.update({
 				name: tokenData.name.trim(),
 				allowAnonymous: tokenData.allowAnonymous,
@@ -453,7 +455,7 @@
 		try {
 			isLoadingRemoveToken = true;
 
-			const hyperbaseToken = await hyperbaseProject.getToken(null, id);
+			const hyperbaseToken = await hyperbaseProject.getToken(null, { id: id });
 			await hyperbaseToken.delete();
 			selectedToken = undefined;
 			unshowModalRemoveToken(true);
@@ -515,10 +517,9 @@
 				isLoadingRefreshRules = true;
 
 				abortRefreshRuleController = new AbortController();
-				hyperbaseToken = await hyperbaseProject.getToken(
-					abortRefreshRuleController.signal,
-					selectedToken.id
-				);
+				hyperbaseToken = await hyperbaseProject.getToken(abortRefreshRuleController.signal, {
+					id: selectedToken.id
+				});
 				const [collectionRulesData, bucketRulesData]: [
 					{
 						pagination: {
@@ -698,24 +699,24 @@
 			isLoadingAddRule = true;
 
 			if (rules.active === 'collection') {
-				await hyperbaseToken.insertOneCollectionRule(
-					showAddRuleData.data.id,
-					showAddRuleData.data.findOne,
-					showAddRuleData.data.findMany,
-					showAddRuleData.data.insertOne,
-					showAddRuleData.data.updateOne,
-					showAddRuleData.data.deleteOne
-				);
+				await hyperbaseToken.insertOneCollectionRule({
+					id: showAddRuleData.data.id,
+					findOne: showAddRuleData.data.findOne,
+					findMany: showAddRuleData.data.findMany,
+					insertOne: showAddRuleData.data.insertOne,
+					updateOne: showAddRuleData.data.updateOne,
+					deleteOne: showAddRuleData.data.deleteOne
+				});
 			}
 			if (rules.active === 'bucket') {
-				await hyperbaseToken.insertOneBucketRule(
-					showAddRuleData.data.id,
-					showAddRuleData.data.findOne,
-					showAddRuleData.data.findMany,
-					showAddRuleData.data.insertOne,
-					showAddRuleData.data.updateOne,
-					showAddRuleData.data.deleteOne
-				);
+				await hyperbaseToken.insertOneBucketRule({
+					id: showAddRuleData.data.id,
+					findOne: showAddRuleData.data.findOne,
+					findMany: showAddRuleData.data.findMany,
+					insertOne: showAddRuleData.data.insertOne,
+					updateOne: showAddRuleData.data.updateOne,
+					deleteOne: showAddRuleData.data.deleteOne
+				});
 			}
 			unshowAddRule(true);
 			toast.success('Successfully added a rule');
@@ -737,24 +738,24 @@
 			isLoadingEditRule = true;
 
 			if (rules.active === 'collection') {
-				await hyperbaseToken.updateOneCollectionRule(
-					showRuleOpt.id,
-					showRuleOpt.editData.findOne,
-					showRuleOpt.editData.findMany,
-					showRuleOpt.editData.insertOne,
-					showRuleOpt.editData.updateOne,
-					showRuleOpt.editData.deleteOne
-				);
+				await hyperbaseToken.updateOneCollectionRule({
+					id: showRuleOpt.id,
+					findOne: showRuleOpt.editData.findOne,
+					findMany: showRuleOpt.editData.findMany,
+					insertOne: showRuleOpt.editData.insertOne,
+					updateOne: showRuleOpt.editData.updateOne,
+					deleteOne: showRuleOpt.editData.deleteOne
+				});
 			}
 			if (rules.active === 'bucket') {
-				await hyperbaseToken.updateOneBucketRule(
-					showRuleOpt.id,
-					showRuleOpt.editData.findOne,
-					showRuleOpt.editData.findMany,
-					showRuleOpt.editData.insertOne,
-					showRuleOpt.editData.updateOne,
-					showRuleOpt.editData.deleteOne
-				);
+				await hyperbaseToken.updateOneBucketRule({
+					id: showRuleOpt.id,
+					findOne: showRuleOpt.editData.findOne,
+					findMany: showRuleOpt.editData.findMany,
+					insertOne: showRuleOpt.editData.insertOne,
+					updateOne: showRuleOpt.editData.updateOne,
+					deleteOne: showRuleOpt.editData.deleteOne
+				});
 			}
 			unshowRuleOpt(true);
 			toast.success('Successfully updated the rule');
@@ -774,10 +775,10 @@
 			isLoadingRemoveRule = true;
 
 			if (rules.active === 'collection') {
-				await hyperbaseToken.deleteOneCollectionRule(showRuleOpt.id);
+				await hyperbaseToken.deleteOneCollectionRule({ id: showRuleOpt.id });
 			}
 			if (rules.active === 'bucket') {
-				await hyperbaseToken.deleteOneBucketRule(showRuleOpt.id);
+				await hyperbaseToken.deleteOneBucketRule({ id: showRuleOpt.id });
 			}
 			unshowRuleOpt(true);
 			toast.success('Successfully removed the bucket');

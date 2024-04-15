@@ -1,12 +1,12 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
+	import toast from 'svelte-french-toast';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
 	import Button from '$lib/components/button/Button.svelte';
 	import Input from '$lib/components/form/Input.svelte';
 	import Hyperbase from '$lib/hyperbase/hyperbase';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext, onMount } from 'svelte';
-	import toast from 'svelte-french-toast';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -35,7 +35,10 @@
 		try {
 			isLoading = true;
 
-			registrationId = await hyperbase.adminSignUp(email.toLowerCase().trim(), password);
+			registrationId = await hyperbase.adminSignUp({
+				email: email.toLowerCase().trim(),
+				password: password
+			});
 
 			toast.success('A verification code has been sent to your email');
 
@@ -52,7 +55,7 @@
 		try {
 			isLoading = true;
 
-			await hyperbase.adminSignUpVerify(registrationId, code.trim());
+			await hyperbase.adminSignUpVerify({ id: registrationId, code: code.trim() });
 
 			toast.success('Successfully verify the account');
 

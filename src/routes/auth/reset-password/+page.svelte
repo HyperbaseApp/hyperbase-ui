@@ -1,12 +1,12 @@
 <script lang="ts">
-	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import Button from '$lib/components/button/Button.svelte';
-	import Input from '$lib/components/form/Input.svelte';
-	import errorHandler from '$lib/utils/errorHandler';
 	import { getContext } from 'svelte';
 	import toast from 'svelte-french-toast';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import type Hyperbase from '$lib/hyperbase/hyperbase';
+	import Button from '$lib/components/button/Button.svelte';
+	import Input from '$lib/components/form/Input.svelte';
+	import errorHandler from '$lib/utils/errorHandler';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -21,7 +21,9 @@
 		try {
 			isLoading = true;
 
-			reqPassResetId = await hyperbase.adminRequestPasswordReset(email.toLowerCase().trim());
+			reqPassResetId = await hyperbase.adminRequestPasswordReset({
+				email: email.toLowerCase().trim()
+			});
 
 			toast.success('A verification code has been sent to your email');
 
@@ -38,7 +40,11 @@
 		try {
 			isLoading = true;
 
-			await hyperbase.adminConfirmPasswordReset(reqPassResetId, code.trim(), newPassword);
+			await hyperbase.adminConfirmPasswordReset({
+				id: reqPassResetId,
+				code: code.trim(),
+				password: newPassword
+			});
 
 			toast.success('Successfully reset the password');
 

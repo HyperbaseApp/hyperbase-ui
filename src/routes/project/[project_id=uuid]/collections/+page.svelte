@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
+	import toast from 'svelte-french-toast';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import type { HyperbaseCollection, HyperbaseProject } from '$lib/hyperbase/hyperbase';
 	import type Hyperbase from '$lib/hyperbase/hyperbase';
 	import type {
@@ -7,11 +12,7 @@
 		SchemaFieldKind,
 		SchemaFieldProps
 	} from '$lib/types/collection';
-	import { getContext, onMount } from 'svelte';
-	import toast from 'svelte-french-toast';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import type { Pagination } from '$lib/types/pagination';
 	import Copy from '$lib/components/icon/Copy.svelte';
 	import Button from '$lib/components/button/Button.svelte';
 	import copyText from '$lib/utils/copyText';
@@ -33,7 +34,6 @@
 	import Folder from '$lib/components/icon/Folder.svelte';
 	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
 	import Send from '$lib/components/icon/Send.svelte';
-	import type { Pagination } from '$lib/types/pagination';
 	import Archive from '$lib/components/icon/Archive.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
@@ -143,7 +143,7 @@
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
-				hyperbaseProject = await hyperbase.getProject(projectId);
+				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				refreshCollections();
 				supportedSchemaFields = await hyperbase.getInfoAllSupportedSchemaFields();
 
@@ -161,8 +161,8 @@
 		try {
 			isLoadingEditProject = true;
 
-			await hyperbaseProject.update(showModalEditProject.name.trim());
-			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
+			await hyperbaseProject.update({ name: showModalEditProject.name.trim() });
+			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
@@ -188,7 +188,9 @@
 		try {
 			isLoadingTransferProject = true;
 
-			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			await hyperbaseProject.transfer({
+				adminEmail: showModalTransferProject.email.toLowerCase().trim()
+			});
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -215,10 +217,10 @@
 		try {
 			isLoadingDuplicateProject = true;
 
-			await hyperbaseProject.duplicate(
-				showModalDuplicateProject.withFiles,
-				showModalDuplicateProject.withRecords
-			);
+			await hyperbaseProject.duplicate({
+				withRecords: showModalDuplicateProject.withRecords,
+				withFiles: showModalDuplicateProject.withFiles
+			});
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -334,7 +336,7 @@
 			abortSelectCollectionController = new AbortController();
 			const hyperbaseCollection = await hyperbaseProject.getCollection(
 				abortSelectCollectionController.signal,
-				collection.id
+				{ id: collection.id }
 			);
 
 			selectedCollection = hyperbaseCollection;
@@ -407,7 +409,9 @@
 		try {
 			isLoadingAddEditCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(null, collectionData.id);
+			const hyperbaseCollection = await hyperbaseProject.getCollection(null, {
+				id: collectionData.id
+			});
 			console.log(collectionData);
 			await hyperbaseCollection.update({
 				name: collectionData.name.trim(),
@@ -425,7 +429,9 @@
 			toast.success('Successfully updated the collection');
 			refreshCollections();
 			if (collectionData.id === selectedCollection?.data.id) {
-				selectedCollection = await hyperbaseProject.getCollection(null, selectedCollection.data.id);
+				selectedCollection = await hyperbaseProject.getCollection(null, {
+					id: selectedCollection.data.id
+				});
 			}
 
 			isLoadingAddEditCollection = false;
@@ -441,7 +447,7 @@
 		try {
 			isLoadingRemoveCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(null, id);
+			const hyperbaseCollection = await hyperbaseProject.getCollection(null, { id: id });
 			await hyperbaseCollection.delete();
 			selectedCollection = undefined;
 			unshowModalRemoveCollection(true);
@@ -780,7 +786,7 @@
 				toast.error('Data is undefined');
 				return;
 			}
-			await selectedCollection.insertOne(data);
+			await selectedCollection.insertOne({ object: data });
 			unshowAddRecord(true);
 			toast.success('Successfully added a record');
 			refreshRecords(null);
@@ -814,7 +820,7 @@
 				toast.error('Data is undefined');
 				return;
 			}
-			await selectedCollection.updateOneRecord(showRecordOpt.id, data);
+			await selectedCollection.updateOneRecord({ id: showRecordOpt.id, object: data });
 			unshowRecordOpt(true);
 			toast.success('Successfully updated the record');
 			refreshRecords(null);
@@ -834,7 +840,7 @@
 		try {
 			isLoadingRemoveRecord = true;
 
-			await selectedCollection.deleteOneRecord(showRecordOpt.id);
+			await selectedCollection.deleteOneRecord({ id: showRecordOpt.id });
 			unshowRecordOpt(true);
 			toast.success('Successfully removed the record');
 			refreshRecords(null);

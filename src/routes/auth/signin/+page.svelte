@@ -1,10 +1,10 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
 	import { base } from '$app/paths';
 	import Button from '$lib/components/button/Button.svelte';
 	import Input from '$lib/components/form/Input.svelte';
 	import Hyperbase from '$lib/hyperbase/hyperbase';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext, onMount } from 'svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -28,7 +28,10 @@
 		try {
 			isLoading = true;
 
-			const token = await hyperbase.adminSignIn(email.toLowerCase().trim(), password);
+			const token = await hyperbase.adminSignIn({
+				email: email.toLowerCase().trim(),
+				password: password
+			});
 
 			localStorage.setItem('token', token!);
 

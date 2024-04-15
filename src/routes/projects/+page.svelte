@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
+	import toast from 'svelte-french-toast';
+	import { base } from '$app/paths';
 	import type Hyperbase from '$lib/hyperbase/hyperbase';
 	import type { Project } from '$lib/types/project';
-	import { base } from '$app/paths';
 	import Button from '$lib/components/button/Button.svelte';
 	import Input from '$lib/components/form/Input.svelte';
 	import AddCircle from '$lib/components/icon/AddCircle.svelte';
@@ -9,8 +11,6 @@
 	import Loading from '$lib/components/icon/Loading.svelte';
 	import copyText from '$lib/utils/copyText';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext, onMount } from 'svelte';
-	import toast from 'svelte-french-toast';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 
@@ -58,7 +58,7 @@
 		try {
 			isLoadingAddProject = true;
 
-			await hyperbase.createProject(addProjectData.name.trim());
+			await hyperbase.createProject({ name: addProjectData.name.trim() });
 
 			await refreshProjects();
 			showModalAddProject = false;

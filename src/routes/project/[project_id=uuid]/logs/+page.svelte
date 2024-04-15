@@ -1,7 +1,13 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
+	import toast from 'svelte-french-toast';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
 	import { page } from '$app/stores';
+	import type { HyperbaseLog, HyperbaseProject } from '$lib/hyperbase/hyperbase';
+	import type Hyperbase from '$lib/hyperbase/hyperbase';
+	import type { Log } from '$lib/types/log';
+	import type { Pagination } from '$lib/types/pagination';
 	import Button from '$lib/components/button/Button.svelte';
 	import Input from '$lib/components/form/Input.svelte';
 	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
@@ -16,14 +22,8 @@
 	import Settings from '$lib/components/icon/Settings.svelte';
 	import Trash from '$lib/components/icon/Trash.svelte';
 	import Warning from '$lib/components/icon/Warning.svelte';
-	import type { HyperbaseLog, HyperbaseProject } from '$lib/hyperbase/hyperbase';
-	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import type { Log } from '$lib/types/log';
-	import type { Pagination } from '$lib/types/pagination';
 	import copyText from '$lib/utils/copyText';
 	import errorHandler from '$lib/utils/errorHandler';
-	import { getContext, onMount } from 'svelte';
-	import toast from 'svelte-french-toast';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
@@ -69,7 +69,7 @@
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
-				hyperbaseProject = await hyperbase.getProject(projectId);
+				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				hyperbaseLog = hyperbaseProject.getLog();
 				await refreshLogs();
 
@@ -87,8 +87,8 @@
 		try {
 			isLoadingEditProject = true;
 
-			await hyperbaseProject.update(showModalEditProject.name);
-			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
+			await hyperbaseProject.update({ name: showModalEditProject.name });
+			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
@@ -114,7 +114,9 @@
 		try {
 			isLoadingTransferProject = true;
 
-			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			await hyperbaseProject.transfer({
+				adminEmail: showModalTransferProject.email.toLowerCase().trim()
+			});
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -141,10 +143,10 @@
 		try {
 			isLoadingDuplicateProject = true;
 
-			await hyperbaseProject.duplicate(
-				showModalDuplicateProject.withFiles,
-				showModalDuplicateProject.withRecords
-			);
+			await hyperbaseProject.duplicate({
+				withRecords: showModalDuplicateProject.withRecords,
+				withFiles: showModalDuplicateProject.withFiles
+			});
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -199,7 +201,7 @@
 			const logsData: {
 				pagination: Pagination;
 				data: Log[];
-			} = await hyperbaseProject.getManyLogs(undefined, 50);
+			} = await hyperbaseProject.getManyLogs({ beforeId: undefined, limit: 50 });
 			logs = logsData;
 
 			isLoadingRefreshLogs = false;
@@ -218,7 +220,7 @@
 			const logsData: {
 				pagination: Pagination;
 				data: Log[];
-			} = await hyperbaseProject.getManyLogs(logs.data.at(-1)?.id, 50);
+			} = await hyperbaseProject.getManyLogs({ beforeId: logs.data.at(-1)?.id, limit: 50 });
 
 			logs = {
 				pagination: {

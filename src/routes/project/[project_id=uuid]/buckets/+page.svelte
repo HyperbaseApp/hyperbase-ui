@@ -1,13 +1,14 @@
 <script lang="ts">
-	import type { HyperbaseBucket, HyperbaseProject } from '$lib/hyperbase/hyperbase';
-	import type Hyperbase from '$lib/hyperbase/hyperbase';
-	import type { Bucket } from '$lib/types/bucket';
-	import type { File as TFile } from '$lib/types/file';
 	import { getContext, onMount } from 'svelte';
 	import toast from 'svelte-french-toast';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import type { HyperbaseBucket, HyperbaseProject } from '$lib/hyperbase/hyperbase';
+	import type Hyperbase from '$lib/hyperbase/hyperbase';
+	import type { Bucket } from '$lib/types/bucket';
+	import type { File as TFile } from '$lib/types/file';
+	import type { Pagination } from '$lib/types/pagination';
 	import Copy from '$lib/components/icon/Copy.svelte';
 	import Button from '$lib/components/button/Button.svelte';
 	import copyText from '$lib/utils/copyText';
@@ -28,8 +29,9 @@
 	import CloudDownload from '$lib/components/icon/CloudDownload.svelte';
 	import Send from '$lib/components/icon/Send.svelte';
 	import InputCheckbox from '$lib/components/form/InputCheckbox.svelte';
-	import type { Pagination } from '$lib/types/pagination';
 	import Archive from '$lib/components/icon/Archive.svelte';
+	import Checkbox from '$lib/components/icon/Checkbox.svelte';
+	import Square from '$lib/components/icon/Square.svelte';
 
 	const hyperbase = getContext<Hyperbase>('hyperbase');
 	let hyperbaseProject: HyperbaseProject;
@@ -118,6 +120,7 @@
 		editData: {
 			createdBy: string;
 			name: string;
+			public: boolean;
 		};
 	} = {
 		id: '',
@@ -125,7 +128,8 @@
 		optPosition: 'top',
 		editData: {
 			createdBy: '',
-			name: ''
+			name: '',
+			public: false
 		}
 	};
 	let showAddFileData: {
@@ -143,7 +147,7 @@
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
-				hyperbaseProject = await hyperbase.getProject(projectId);
+				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				refreshBuckets();
 
 				isLoadingInit = false;
@@ -160,8 +164,8 @@
 		try {
 			isLoadingEditProject = true;
 
-			await hyperbaseProject.update(showModalEditProject.name.trim());
-			hyperbaseProject = await hyperbase.getProject(showModalEditProject.id);
+			await hyperbaseProject.update({ name: showModalEditProject.name.trim() });
+			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
 
@@ -187,7 +191,9 @@
 		try {
 			isLoadingTransferProject = true;
 
-			await hyperbaseProject.transfer(showModalTransferProject.email.toLowerCase().trim());
+			await hyperbaseProject.transfer({
+				adminEmail: showModalTransferProject.email.toLowerCase().trim()
+			});
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -214,10 +220,10 @@
 		try {
 			isLoadingDuplicateProject = true;
 
-			await hyperbaseProject.duplicate(
-				showModalDuplicateProject.withFiles,
-				showModalDuplicateProject.withRecords
-			);
+			await hyperbaseProject.duplicate({
+				withRecords: showModalDuplicateProject.withRecords,
+				withFiles: showModalDuplicateProject.withFiles
+			});
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
@@ -306,7 +312,10 @@
 				const uploadPromises = [];
 				for (const file of inputFile.files) {
 					uploadPromises.push(
-						selectedBucket.insertOneFile(abortUploadFileController.signal, file, file.name.trim())
+						selectedBucket.insertOneFile(abortUploadFileController.signal, {
+							file: file,
+							fileName: file.name.trim()
+						})
 					);
 				}
 				await Promise.all(uploadPromises);
@@ -363,7 +372,7 @@
 			abortRefreshSelectedBucketController = new AbortController();
 			const hyperbaseBucket = await hyperbaseProject.getBucket(
 				abortRefreshSelectedBucketController.signal,
-				bucket.id
+				{ id: bucket.id }
 			);
 
 			selectedBucket = hyperbaseBucket;
@@ -403,7 +412,7 @@
 		try {
 			isLoadingAddEditBucket = true;
 
-			const hyperbaseBucket = await hyperbaseProject.getBucket(null, bucketData.id);
+			const hyperbaseBucket = await hyperbaseProject.getBucket(null, { id: bucketData.id });
 			await hyperbaseBucket.update({
 				name: bucketData.name.trim(),
 				optTTL: bucketData.optTTL ? Number(bucketData.optTTL) : null
@@ -418,7 +427,7 @@
 			toast.success('Successfully updated the bucket');
 			refreshBuckets();
 			if (bucketData.id === selectedBucket?.data.id) {
-				selectedBucket = await hyperbaseProject.getBucket(null, selectedBucket.data.id);
+				selectedBucket = await hyperbaseProject.getBucket(null, { id: selectedBucket.data.id });
 			}
 
 			isLoadingAddEditBucket = false;
@@ -434,7 +443,7 @@
 		try {
 			isLoadingRemoveBucket = true;
 
-			const hyperbaseBucket = await hyperbaseProject.getBucket(null, id);
+			const hyperbaseBucket = await hyperbaseProject.getBucket(null, { id: id });
 			await hyperbaseBucket.delete();
 			selectedBucket = undefined;
 			unshowModalRemoveBucket(true);
@@ -498,7 +507,7 @@
 				const filesData: {
 					pagination: Pagination;
 					data: TFile[];
-				} = await selectedBucket.findManyFiles(abortSignal, undefined, 15);
+				} = await selectedBucket.findManyFiles(abortSignal, { beforeId: undefined, limit: 15 });
 				files = filesData;
 
 				isLoadingRefreshFiles = false;
@@ -527,7 +536,7 @@
 			const filesData: {
 				pagination: Pagination;
 				data: TFile[];
-			} = await selectedBucket.findManyFiles(null, files.data.at(-1)?.id, 15);
+			} = await selectedBucket.findManyFiles(null, { beforeId: files.data.at(-1)?.id, limit: 15 });
 
 			files = {
 				pagination: {
@@ -554,6 +563,7 @@
 			id: string;
 			createdBy: string;
 			name: string;
+			public: boolean;
 		}
 	) {
 		if (isLoadingEditFile) return;
@@ -571,7 +581,8 @@
 			showFileOpt.action = 'none';
 			showFileOpt.editData = {
 				createdBy: '',
-				name: ''
+				name: '',
+				public: false
 			};
 		}
 	}
@@ -597,22 +608,24 @@
 			optPosition: 'top',
 			editData: {
 				createdBy: '',
-				name: ''
+				name: '',
+				public: false
 			}
 		};
 	}
 
 	async function editFile() {
-		if (!selectedBucket) return;
+		if (!selectedBucket || isLoadingEditFile) return;
 
 		try {
 			isLoadingEditFile = true;
 
-			await selectedBucket.updateOneFile(
-				showFileOpt.id,
-				showFileOpt.editData.createdBy.trim(),
-				showFileOpt.editData.name.trim()
-			);
+			await selectedBucket.updateOneFile({
+				id: showFileOpt.id,
+				createdBy: showFileOpt.editData.createdBy.trim(),
+				fileName: showFileOpt.editData.name.trim(),
+				public: showFileOpt.editData.public
+			});
 			unshowFileOpt(true);
 			toast.success('Successfully updated the file');
 			refreshFiles(null);
@@ -632,7 +645,7 @@
 		try {
 			isLoadingRemoveFile = true;
 
-			await selectedBucket.deleteOneFile(showFileOpt.id);
+			await selectedBucket.deleteOneFile({ id: showFileOpt.id });
 			unshowFileOpt(true);
 			toast.success('Successfully removed the file');
 			refreshFiles(null);
@@ -953,6 +966,7 @@
 												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">File Name</th>
 												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Content Type</th>
 												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Size</th>
+												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Public</th>
 												<th class="py-1 px-2 sticky top-0 bg-white relative z-20">Options</th>
 											</tr>
 										</thead>
@@ -999,6 +1013,25 @@
 														{formatFileSize(file.size)}
 													</td>
 													<td class="py-1 px-2 text-sm">
+														{#if showFileOpt.id === file.id && showFileOpt.action === 'edit'}
+															<button
+																type="button"
+																on:click|preventDefault={() =>
+																	(showFileOpt.editData.public = !showFileOpt.editData.public)}
+															>
+																{#if showFileOpt.editData.public}
+																	<Checkbox class="w-6 h-6" />
+																{:else}
+																	<Square class="w-6 h-6" />
+																{/if}
+															</button>
+														{:else if file.public}
+															<Checkbox class="w-5 h-5" />
+														{:else}
+															<Square class="w-5 h-5" />
+														{/if}
+													</td>
+													<td class="py-1 px-2 text-sm">
 														<div class="py-1 relative">
 															{#if showFileOpt.id === file.id && showFileOpt.action === 'edit'}
 																<div class="w-fit mx-auto flex gap-x-2">
@@ -1019,7 +1052,8 @@
 																			toggleShowFileOpt(e, {
 																				id: file.id,
 																				createdBy: file.created_by,
-																				name: file.file_name
+																				name: file.file_name,
+																				public: file.public
 																			})}
 																	>
 																		<CloseCircle class="w-5 h-5" />
@@ -1028,7 +1062,7 @@
 															{:else}
 																<div class="w-fit mx-auto flex gap-x-2">
 																	<a
-																		href={selectedBucket.getDownloadFileUrl(file.id)}
+																		href={selectedBucket.getDownloadFileUrl(file.id, file.public)}
 																		target="_blank"
 																	>
 																		<CloudDownload class="w-5 h-5" />
@@ -1039,7 +1073,8 @@
 																			toggleShowFileOpt(e, {
 																				id: file.id,
 																				createdBy: file.created_by,
-																				name: file.file_name
+																				name: file.file_name,
+																				public: file.public
 																			})}
 																		class="block w-fit mx-auto"
 																	>

@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { onMount, setContext } from 'svelte';
-	import Hyperbase, { AuthState as HyperbaseAuthState } from '$lib/hyperbase/hyperbase';
-	import hyperbaseConfig from '$lib/hyperbase/hyperbaseConfig.json';
 	import { Toaster } from 'svelte-french-toast';
 	import { base } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import Hyperbase, { AuthState as HyperbaseAuthState } from '$lib/hyperbase/hyperbase';
 	import LogOut from '$lib/components/icon/LogOut.svelte';
 	import Loading from '$lib/components/icon/Loading.svelte';
 	import Home from '$lib/components/icon/Home.svelte';
@@ -13,12 +12,12 @@
 	import Input from '$lib/components/form/Input.svelte';
 	import Button from '$lib/components/button/Button.svelte';
 	import errorHandler from '$lib/utils/errorHandler';
-	import '../app.css';
 	import Trash from '$lib/components/icon/Trash.svelte';
 	import Warning from '$lib/components/icon/Warning.svelte';
+	import '../app.css';
 
-	let hyperbaseBaseUrl: string = hyperbaseConfig.default_base_url;
-	let hyperbaseBaseWsUrl: string | undefined = hyperbaseConfig.default_base_ws_url;
+	let hyperbaseBaseUrl: string = '';
+	let hyperbaseBaseWsUrl: string | undefined = '';
 
 	const hyperbase = new Hyperbase(hyperbaseBaseUrl, hyperbaseBaseWsUrl);
 	const isReady = hyperbase.isReady;
@@ -45,6 +44,11 @@
 	let admin = hyperbase.admin;
 
 	onMount(() => {
+		hyperbase.changeServerInternal(
+			`http://${location.hostname}:15511`,
+			`ws://${location.hostname}:15511`
+		);
+
 		(async () => {
 			try {
 				const { baseUrl, baseWsUrl } = await hyperbase.init();
@@ -57,6 +61,14 @@
 			}
 		})();
 	});
+
+	$: if ($isReady) {
+		(async () => {
+			if (!(await hyperbase.health())) {
+				changeHyperbaseBaseUrl.show = true;
+			}
+		})();
+	}
 
 	$: if ($isReady) {
 		const inRootPath = $page.url.pathname === `${base}/`;

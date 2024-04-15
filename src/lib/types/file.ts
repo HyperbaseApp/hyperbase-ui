@@ -7,4 +7,5 @@ export interface File {
 	file_name: string;
 	content_type: string;
 	size: number;
+	public: boolean;
 }
