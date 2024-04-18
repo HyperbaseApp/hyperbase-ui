@@ -616,18 +616,28 @@
 					],
 					limit: 20
 				});
-				for (const [field, props] of Object.entries(selectedCollection.data.schema_fields)) {
-					if (props.kind === 'timestamp') {
-						for (let i = 0; i < recordsData.data.length; ++i) {
-							recordsData.data[i][field] = convertTimestampToDatetimeLocal(
-								recordsData.data[i][field]
-							);
+				for (let i = 0; i < recordsData.data.length; ++i) {
+					for (const [field, value] of Object.entries(recordsData.data[i])) {
+						if (!value) continue;
+
+						const props = selectedCollection.data.schema_fields[field];
+						let kind = '';
+						if (field === '_updated_at') {
+							kind = 'timestamp';
+						} else if (props) {
+							kind = props.kind;
 						}
-					} else if (props.kind === 'json') {
-						for (let i = 0; i < recordsData.data.length; ++i) {
-							if (recordsData.data[i][field]) {
+						if (!kind) continue;
+
+						switch (kind) {
+							case 'timestamp':
+								recordsData.data[i][field] = convertTimestampToDatetimeLocal(
+									recordsData.data[i][field]
+								);
+								break;
+							case 'json':
 								recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
-							}
+								break;
 						}
 					}
 				}
@@ -678,18 +688,28 @@
 				],
 				limit: 20
 			});
-			for (const [field, props] of Object.entries(selectedCollection.data.schema_fields)) {
-				if (props.kind === 'timestamp') {
-					for (let i = 0; i < recordsData.data.length; ++i) {
-						recordsData.data[i][field] = convertTimestampToDatetimeLocal(
-							recordsData.data[i][field]
-						);
+			for (let i = 0; i < recordsData.data.length; ++i) {
+				for (const [field, value] of Object.entries(recordsData.data[i])) {
+					if (!value) continue;
+
+					const props = selectedCollection.data.schema_fields[field];
+					let kind = '';
+					if (field === '_updated_at') {
+						kind = 'timestamp';
+					} else if (props) {
+						kind = props.kind;
 					}
-				} else if (props.kind === 'json') {
-					for (let i = 0; i < recordsData.data.length; ++i) {
-						if (recordsData.data[i][field]) {
+					if (!kind) continue;
+
+					switch (kind) {
+						case 'timestamp':
+							recordsData.data[i][field] = convertTimestampToDatetimeLocal(
+								recordsData.data[i][field]
+							);
+							break;
+						case 'json':
 							recordsData.data[i][field] = JSON.stringify(recordsData.data[i][field]);
-						}
+							break;
 					}
 				}
 			}
@@ -868,10 +888,33 @@
 			selectedCollection.subscribe({
 				onOpenCallback: () => (listenChangeRecordState = 'active'),
 				onMessageCallback: (ev) => {
+					if (!selectedCollection) return;
+
 					const parsedData = JSON.parse(ev.data);
 					const data = parsedData.data;
 					switch (parsedData.kind) {
 						case 'insert_one':
+							for (const [field, value] of Object.entries(data)) {
+								if (!value) continue;
+
+								const props = selectedCollection.data.schema_fields[field];
+								let kind = '';
+								if (field === '_updated_at') {
+									kind = 'timestamp';
+								} else if (props) {
+									kind = props.kind;
+								}
+								if (!kind) continue;
+
+								switch (kind) {
+									case 'timestamp':
+										data[field] = convertTimestampToDatetimeLocal(data[field]);
+										break;
+									case 'json':
+										data[field] = JSON.stringify(data[field]);
+										break;
+								}
+							}
 							records = {
 								pagination: {
 									count: records.pagination.count + 1,
