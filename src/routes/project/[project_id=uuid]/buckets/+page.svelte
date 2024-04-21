@@ -312,17 +312,20 @@
 				const uploadPromises = [];
 				for (const file of inputFile.files) {
 					uploadPromises.push(
-						selectedBucket.insertOneFile(abortUploadFileController.signal, {
-							file: file,
-							fileName: file.name.trim()
-						})
+						selectedBucket.insertOneFile(
+							{
+								file: file,
+								fileName: file.name.trim()
+							},
+							abortUploadFileController.signal
+						)
 					);
 				}
 				await Promise.all(uploadPromises);
 			} catch (err) {
 				errorHandler(err);
 			}
-			refreshFiles(null);
+			refreshFiles();
 			isLoadingAddFile = false;
 		}
 		inputFile.value = '';
@@ -371,8 +374,8 @@
 
 			abortRefreshSelectedBucketController = new AbortController();
 			const hyperbaseBucket = await hyperbaseProject.getBucket(
-				abortRefreshSelectedBucketController.signal,
-				{ id: bucket.id }
+				{ id: bucket.id },
+				abortRefreshSelectedBucketController.signal
 			);
 
 			selectedBucket = hyperbaseBucket;
@@ -412,7 +415,7 @@
 		try {
 			isLoadingAddEditBucket = true;
 
-			const hyperbaseBucket = await hyperbaseProject.getBucket(null, { id: bucketData.id });
+			const hyperbaseBucket = await hyperbaseProject.getBucket({ id: bucketData.id });
 			await hyperbaseBucket.update({
 				name: bucketData.name.trim(),
 				optTTL: bucketData.optTTL ? Number(bucketData.optTTL) : null
@@ -427,7 +430,7 @@
 			toast.success('Successfully updated the bucket');
 			refreshBuckets();
 			if (bucketData.id === selectedBucket?.data.id) {
-				selectedBucket = await hyperbaseProject.getBucket(null, { id: selectedBucket.data.id });
+				selectedBucket = await hyperbaseProject.getBucket({ id: selectedBucket.data.id });
 			}
 
 			isLoadingAddEditBucket = false;
@@ -443,7 +446,7 @@
 		try {
 			isLoadingRemoveBucket = true;
 
-			const hyperbaseBucket = await hyperbaseProject.getBucket(null, { id: id });
+			const hyperbaseBucket = await hyperbaseProject.getBucket({ id: id });
 			await hyperbaseBucket.delete();
 			selectedBucket = undefined;
 			unshowModalRemoveBucket(true);
@@ -499,7 +502,7 @@
 		showModalBucket = 'none';
 	}
 
-	async function refreshFiles(abortSignal: AbortSignal | null) {
+	async function refreshFiles(abortSignal?: AbortSignal) {
 		if (selectedBucket) {
 			try {
 				isLoadingRefreshFiles = true;
@@ -507,7 +510,7 @@
 				const filesData: {
 					pagination: Pagination;
 					data: TFile[];
-				} = await selectedBucket.findManyFiles(abortSignal, { beforeId: undefined, limit: 15 });
+				} = await selectedBucket.findManyFiles({ beforeId: undefined, limit: 15 }, abortSignal);
 				files = filesData;
 
 				isLoadingRefreshFiles = false;
@@ -536,7 +539,7 @@
 			const filesData: {
 				pagination: Pagination;
 				data: TFile[];
-			} = await selectedBucket.findManyFiles(null, { beforeId: files.data.at(-1)?.id, limit: 15 });
+			} = await selectedBucket.findManyFiles({ beforeId: files.data.at(-1)?.id, limit: 15 });
 
 			files = {
 				pagination: {
@@ -628,7 +631,7 @@
 			});
 			unshowFileOpt(true);
 			toast.success('Successfully updated the file');
-			refreshFiles(null);
+			refreshFiles();
 
 			isLoadingEditFile = false;
 		} catch (err) {
@@ -648,7 +651,7 @@
 			await selectedBucket.deleteOneFile({ id: showFileOpt.id });
 			unshowFileOpt(true);
 			toast.success('Successfully removed the file');
-			refreshFiles(null);
+			refreshFiles();
 
 			isLoadingRemoveFile = false;
 		} catch (err) {

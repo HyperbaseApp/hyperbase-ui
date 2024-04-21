@@ -19,7 +19,7 @@
 	let hyperbaseBaseUrl: string = '';
 	let hyperbaseBaseWsUrl: string | undefined = '';
 
-	const hyperbase = new Hyperbase(hyperbaseBaseUrl, hyperbaseBaseWsUrl);
+	const hyperbase = new Hyperbase();
 	const isReady = hyperbase.isReady;
 	const authState = hyperbase.authState;
 
@@ -44,11 +44,6 @@
 	let admin = hyperbase.admin;
 
 	onMount(() => {
-		hyperbase.changeServerInternal(
-			`http://${location.hostname}:15511`,
-			`ws://${location.hostname}:15511`
-		);
-
 		(async () => {
 			try {
 				const { baseUrl, baseWsUrl } = await hyperbase.init();

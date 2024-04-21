@@ -335,8 +335,8 @@
 
 			abortSelectCollectionController = new AbortController();
 			const hyperbaseCollection = await hyperbaseProject.getCollection(
-				abortSelectCollectionController.signal,
-				{ id: collection.id }
+				{ id: collection.id },
+				abortSelectCollectionController.signal
 			);
 
 			selectedCollection = hyperbaseCollection;
@@ -409,7 +409,7 @@
 		try {
 			isLoadingAddEditCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(null, {
+			const hyperbaseCollection = await hyperbaseProject.getCollection({
 				id: collectionData.id
 			});
 			console.log(collectionData);
@@ -429,7 +429,7 @@
 			toast.success('Successfully updated the collection');
 			refreshCollections();
 			if (collectionData.id === selectedCollection?.data.id) {
-				selectedCollection = await hyperbaseProject.getCollection(null, {
+				selectedCollection = await hyperbaseProject.getCollection({
 					id: selectedCollection.data.id
 				});
 			}
@@ -447,7 +447,7 @@
 		try {
 			isLoadingRemoveCollection = true;
 
-			const hyperbaseCollection = await hyperbaseProject.getCollection(null, { id: id });
+			const hyperbaseCollection = await hyperbaseProject.getCollection({ id: id });
 			await hyperbaseCollection.delete();
 			selectedCollection = undefined;
 			unshowModalRemoveCollection(true);
@@ -597,7 +597,7 @@
 		}
 	}
 
-	async function refreshRecords(abortSignal: AbortSignal | null) {
+	async function refreshRecords(abortSignal?: AbortSignal) {
 		if (selectedCollection) {
 			try {
 				isLoadingRefreshRecords = true;
@@ -607,15 +607,18 @@
 					data: {
 						[field: string]: any;
 					}[];
-				} = await selectedCollection.findManyRecords(abortSignal, {
-					orders: [
-						{
-							field: '_id',
-							kind: 'desc'
-						}
-					],
-					limit: 20
-				});
+				} = await selectedCollection.findManyRecords(
+					{
+						orders: [
+							{
+								field: '_id',
+								kind: 'desc'
+							}
+						],
+						limit: 20
+					},
+					abortSignal
+				);
 				for (let i = 0; i < recordsData.data.length; ++i) {
 					for (const [field, value] of Object.entries(recordsData.data[i])) {
 						if (!value) continue;
@@ -672,7 +675,7 @@
 				data: {
 					[field: string]: any;
 				}[];
-			} = await selectedCollection.findManyRecords(null, {
+			} = await selectedCollection.findManyRecords({
 				filters: [
 					{
 						field: '_id',
@@ -809,7 +812,7 @@
 			await selectedCollection.insertOne({ object: data });
 			unshowAddRecord(true);
 			toast.success('Successfully added a record');
-			refreshRecords(null);
+			refreshRecords();
 
 			isLoadingAddRecord = false;
 		} catch (err) {
@@ -843,7 +846,7 @@
 			await selectedCollection.updateOneRecord({ id: showRecordOpt.id, object: data });
 			unshowRecordOpt(true);
 			toast.success('Successfully updated the record');
-			refreshRecords(null);
+			refreshRecords();
 
 			isLoadingEditRecord = false;
 		} catch (err) {
@@ -863,7 +866,7 @@
 			await selectedCollection.deleteOneRecord({ id: showRecordOpt.id });
 			unshowRecordOpt(true);
 			toast.success('Successfully removed the record');
-			refreshRecords(null);
+			refreshRecords();
 
 			isLoadingRemoveRecord = false;
 		} catch (err) {
@@ -879,12 +882,12 @@
 
 		if (listenChangeRecordState !== 'off') {
 			stopRealtimeRecord();
-			refreshRecords(null);
+			refreshRecords();
 			return;
 		}
 
 		try {
-			await refreshRecords(null);
+			await refreshRecords();
 			selectedCollection.subscribe({
 				onOpenCallback: () => (listenChangeRecordState = 'active'),
 				onMessageCallback: (ev) => {
@@ -893,7 +896,7 @@
 					const parsedData = JSON.parse(ev.data);
 					const data = parsedData.data;
 					switch (parsedData.kind) {
-						case 'insert_one':
+						case 'insert_one': {
 							for (const [field, value] of Object.entries(data)) {
 								if (!value) continue;
 
@@ -923,10 +926,50 @@
 								data: [data, ...records.data]
 							};
 							break;
-						case 'update_one':
+						}
+						case 'update_one': {
+							for (const [field, value] of Object.entries(data)) {
+								if (!value) continue;
+
+								const props = selectedCollection.data.schema_fields[field];
+								let kind = '';
+								if (field === '_updated_at') {
+									kind = 'timestamp';
+								} else if (props) {
+									kind = props.kind;
+								}
+								if (!kind) continue;
+
+								switch (kind) {
+									case 'timestamp':
+										data[field] = convertTimestampToDatetimeLocal(data[field]);
+										break;
+									case 'json':
+										data[field] = JSON.stringify(data[field]);
+										break;
+								}
+							}
+							const id = data['_id'];
+							if (!id) return;
+							const idx = records.data.findIndex((d) => d['_id'] === id);
+							if (idx < 0) return;
+							records.data[idx] = data;
 							break;
-						case 'delete_one':
+						}
+						case 'delete_one': {
+							const id = data;
+							if (!id) return;
+							const idx = records.data.findIndex((d) => d['_id'] === id);
+							if (idx < 0) return;
+							records = {
+								pagination: {
+									count: records.pagination.count - 1,
+									total: records.pagination.total - 1
+								},
+								data: records.data.filter((d) => d['_id'] !== id)
+							};
 							break;
+						}
 					}
 				},
 				onErrorCallback: () => (listenChangeRecordState = 'error'),

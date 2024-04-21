@@ -8,8 +8,8 @@ import { jwtDecode } from 'jwt-decode';
 import { writable } from 'svelte/store';
 
 export default class Hyperbase {
-	#_baseUrl: string;
-	#_baseWsUrl?: string;
+	#_baseUrl = '';
+	#_baseWsUrl = '';
 	#_authToken?: string;
 
 	#_adminData?: Admin;
@@ -40,11 +40,6 @@ export default class Hyperbase {
 
 	get isReady() {
 		return this.#_isReady;
-	}
-
-	constructor(defaultBaseUrl: string, defaultBaseWsUrl?: string) {
-		this.#_baseUrl = defaultBaseUrl;
-		this.#_baseWsUrl = defaultBaseWsUrl;
 	}
 
 	async init() {
@@ -88,7 +83,7 @@ export default class Hyperbase {
 		}
 	}
 
-	changeServerInternal(baseUrl: string, baseWsUrl?: string) {
+	changeServerInternal(baseUrl: string, baseWsUrl: string) {
 		this.#_baseUrl = baseUrl;
 		this.#_baseWsUrl = baseWsUrl;
 	}
@@ -101,7 +96,7 @@ export default class Hyperbase {
 		location.reload();
 	}
 
-	async adminSignUp(data: { email: string; password: string }) {
+	async adminSignUp(data: { email: string; password: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api('/auth/register', {
 			method: 'POST',
 			body: JSON.stringify({
@@ -110,13 +105,14 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data.id;
 	}
 
-	async adminSignUpVerify(data: { id: string; code: string }) {
+	async adminSignUpVerify(data: { id: string; code: string }, abortSignal?: AbortSignal) {
 		await this.#api('/auth/verify-registration', {
 			method: 'POST',
 			body: JSON.stringify({
@@ -125,11 +121,12 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 	}
 
-	async adminSignIn(data: { email: string; password: string }) {
+	async adminSignIn(data: { email: string; password: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/auth/password-based`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -138,7 +135,8 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#setTokenStorage(res.data.token);
@@ -150,7 +148,7 @@ export default class Hyperbase {
 		return this.#_authToken;
 	}
 
-	async adminRequestPasswordReset(data: { email: string }) {
+	async adminRequestPasswordReset(data: { email: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/auth/request-password-reset`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -158,13 +156,17 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data.id;
 	}
 
-	async adminConfirmPasswordReset(data: { id: string; code: string; password: string }) {
+	async adminConfirmPasswordReset(
+		data: { id: string; code: string; password: string },
+		abortSignal?: AbortSignal
+	) {
 		await this.#api(`/auth/confirm-password-reset`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -174,7 +176,8 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 	}
 
@@ -190,7 +193,10 @@ export default class Hyperbase {
 		location.reload();
 	}
 
-	async userSignIn(data: { tokenId: string; token: string; collectionId: string; data: any }) {
+	async userSignIn(
+		data: { tokenId: string; token: string; collectionId: string; data: any },
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/auth/token-based`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -201,7 +207,8 @@ export default class Hyperbase {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#setTokenStorage(res.data.token);
@@ -219,18 +226,19 @@ export default class Hyperbase {
 		this.#_authState.set(AuthState.Unauthenticated);
 	}
 
-	async getUserData() {
+	async getUserData(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/user`, {
 			method: 'GET',
 			headers: {
 				authorization: `Bearer ${this.#_authToken}`
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async createProject(data: { name: string }) {
+	async createProject(data: { name: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api('/project', {
 			method: 'POST',
 			body: JSON.stringify({
@@ -239,25 +247,27 @@ export default class Hyperbase {
 			headers: {
 				'content-type': 'application/json',
 				authorization: `Bearer ${this.#_authToken}`
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getProject(data: { id: string }) {
+	async getProject(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/project/${data.id}`, {
 			method: 'GET',
 			headers: {
 				'content-type': 'application/json',
 				authorization: `Bearer ${this.#_authToken}`
-			}
+			},
+			signal: abortSignal
 		});
 
 		return new HyperbaseProject(this, res.data);
 	}
 
-	async getAllProjects(abortSignal: AbortSignal | null) {
+	async getAllProjects(abortSignal?: AbortSignal) {
 		const res = await this.#api('/projects', {
 			method: 'GET',
 			headers: {
@@ -269,37 +279,40 @@ export default class Hyperbase {
 		return res.data;
 	}
 
-	async getInfoAllSupportedSchemaFields() {
+	async getInfoAllSupportedSchemaFields(abortSignal?: AbortSignal) {
 		const res = await this.#api('/info/schema_fields', {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getInfoAdminRegistration() {
+	async getInfoAdminRegistration(abortSignal?: AbortSignal) {
 		const res = await this.#api('/info/admin_registration', {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async health() {
+	async health(abortSignal?: AbortSignal) {
 		try {
-			await this.#api('', {});
+			await this.#api('', { signal: abortSignal });
 			return true;
 		} catch (_) {
 			return false;
 		}
 	}
 
-	async #getAdminData() {
+	async #getAdminData(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/admin`, {
 			method: 'GET',
 			headers: {
 				authorization: `Bearer ${this.#_authToken}`
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_adminData = res.data;
@@ -308,12 +321,13 @@ export default class Hyperbase {
 		return res.data;
 	}
 
-	async #setAuthToken(authToken: string) {
+	async #setAuthToken(authToken: string, abortSignal?: AbortSignal) {
 		const res = await this.#api('/auth/token', {
 			method: 'GET',
 			headers: {
 				authorization: `Bearer ${authToken}`
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_authToken = res.data.token;
@@ -357,7 +371,7 @@ export class HyperbaseProject {
 		this.#_data = project;
 	}
 
-	async update(data: { name: string }) {
+	async update(data: { name: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -365,7 +379,8 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_data = res.data;
@@ -373,7 +388,7 @@ export class HyperbaseProject {
 		return res.data;
 	}
 
-	async transfer(data: { adminEmail: string }) {
+	async transfer(data: { adminEmail: string }, abortSignal?: AbortSignal) {
 		await this.#api('/transfer', {
 			method: 'POST',
 			body: JSON.stringify({
@@ -381,11 +396,12 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 	}
 
-	async duplicate(data: { withRecords: boolean; withFiles: boolean }) {
+	async duplicate(data: { withRecords: boolean; withFiles: boolean }, abortSignal?: AbortSignal) {
 		await this.#api('/duplicate', {
 			method: 'POST',
 			body: JSON.stringify({
@@ -394,17 +410,19 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 	}
 
-	async delete() {
+	async delete(abortSignal?: AbortSignal) {
 		await this.#api('', {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async getCollection(abortSignal: AbortSignal | null, data: { id: string }) {
+	async getCollection(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/collection/${data.id}`, {
 			method: 'GET',
 			signal: abortSignal
@@ -413,7 +431,7 @@ export class HyperbaseProject {
 		return new HyperbaseCollection(this, res.data);
 	}
 
-	async getBucket(abortSignal: AbortSignal | null, data: { id: string }) {
+	async getBucket(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/bucket/${data.id}`, {
 			method: 'GET',
 			signal: abortSignal
@@ -422,7 +440,7 @@ export class HyperbaseProject {
 		return new HyperbaseBucket(this, res.data);
 	}
 
-	async getToken(abortSignal: AbortSignal | null, data: { id: string }) {
+	async getToken(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/token/${data.id}`, {
 			method: 'GET',
 			signal: abortSignal
@@ -431,14 +449,17 @@ export class HyperbaseProject {
 		return new HyperbaseToken(this, res.data);
 	}
 
-	async createCollection(data: {
-		name: string;
-		schemaFields: {
-			[field: string]: SchemaFieldProps;
-		};
-		optAuthColumnId: boolean;
-		optTTL: number | null;
-	}) {
+	async createCollection(
+		data: {
+			name: string;
+			schemaFields: {
+				[field: string]: SchemaFieldProps;
+			};
+			optAuthColumnId: boolean;
+			optTTL: number | null;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/collection`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -449,13 +470,14 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async createBucket(data: { name: string; optTTL: number | null }) {
+	async createBucket(data: { name: string; optTTL: number | null }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/bucket`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -464,13 +486,17 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async createToken(data: { name: string; allowAnonymous: boolean; expiredAt: string | null }) {
+	async createToken(
+		data: { name: string; allowAnonymous: boolean; expiredAt: string | null },
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/token`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -480,37 +506,41 @@ export class HyperbaseProject {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getAllCollections() {
+	async getAllCollections(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/collections`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getAllBuckets() {
+	async getAllBuckets(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/buckets`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getAllTokens() {
+	async getAllTokens(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/tokens`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async getManyLogs(data: { beforeId?: string; limit?: number }) {
+	async getManyLogs(data: { beforeId?: string; limit?: number }, abortSignal?: AbortSignal) {
 		let query = '';
 		if (data.beforeId) {
 			if (query) {
@@ -529,7 +559,8 @@ export class HyperbaseProject {
 			query += `limit=${data.limit}`;
 		}
 		const res = await this.#api(`/logs${query}`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res;
@@ -572,14 +603,17 @@ export class HyperbaseCollection {
 		this.#_data = collection;
 	}
 
-	async update(data: {
-		name: string;
-		schemaFields: {
-			[field: string]: SchemaFieldProps;
-		};
-		optAuthColumnId: boolean;
-		optTTL: number | null;
-	}) {
+	async update(
+		data: {
+			name: string;
+			schemaFields: {
+				[field: string]: SchemaFieldProps;
+			};
+			optAuthColumnId: boolean;
+			optTTL: number | null;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -590,7 +624,8 @@ export class HyperbaseCollection {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_data = res.data;
@@ -598,59 +633,67 @@ export class HyperbaseCollection {
 		return res.data;
 	}
 
-	async delete() {
+	async delete(abortSignal?: AbortSignal) {
 		await this.#api('', {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async insertOne(data: { object: { [field: string]: any } }) {
+	async insertOne(data: { object: { [field: string]: any } }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/record`, {
 			method: 'POST',
 			body: JSON.stringify(data.object),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async findOneRecord(data: { id: string }) {
+	async findOneRecord(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/record/${data.id}`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async updateOneRecord(data: { id: string; object: { [field: string]: any } }) {
+	async updateOneRecord(
+		data: { id: string; object: { [field: string]: any } },
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/record/${data.id}`, {
 			method: 'PATCH',
 			body: JSON.stringify(data.object),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async deleteOneRecord(data: { id: string }) {
+	async deleteOneRecord(data: { id: string }, abortSignal?: AbortSignal) {
 		await this.#api(`/record/${data.id}`, {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
 	async findManyRecords(
-		abortSignal: AbortSignal | null,
 		data?: {
 			fields?: string[];
 			filters?: CollectionFilter[];
 			groups?: string[];
 			orders?: CollectionOrder[];
 			limit?: number;
-		}
+		},
+		abortSignal?: AbortSignal
 	) {
 		let fields, filters, groups, orders, limit;
 
@@ -756,7 +799,7 @@ export class HyperbaseBucket {
 		this.#_data = bucket;
 	}
 
-	async update(data: { name: string; optTTL: number | null }) {
+	async update(data: { name: string; optTTL: number | null }, abortSignal?: AbortSignal) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -765,7 +808,8 @@ export class HyperbaseBucket {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_data = res.data;
@@ -773,13 +817,14 @@ export class HyperbaseBucket {
 		return res.data;
 	}
 
-	async delete() {
+	async delete(abortSignal?: AbortSignal) {
 		await this.#api('', {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async insertOneFile(abortSignal: AbortSignal | null, data: { file: File; fileName?: string }) {
+	async insertOneFile(data: { file: File; fileName?: string }, abortSignal?: AbortSignal) {
 		const formData = new FormData();
 		formData.append('file', data.file);
 		if (data.fileName) {
@@ -794,15 +839,19 @@ export class HyperbaseBucket {
 		return res.data;
 	}
 
-	async findOneFile(data: { id: string }) {
+	async findOneFile(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/file/${data.id}`, {
-			method: 'HEAD'
+			method: 'HEAD',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async updateOneFile(data: { id: string; createdBy: string; fileName: string; public: boolean }) {
+	async updateOneFile(
+		data: { id: string; createdBy: string; fileName: string; public: boolean },
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/file/${data.id}`, {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -812,22 +861,21 @@ export class HyperbaseBucket {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async deleteOneFile(data: { id: string }) {
+	async deleteOneFile(data: { id: string }, abortSignal?: AbortSignal) {
 		await this.#api(`/file/${data.id}`, {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async findManyFiles(
-		abortSignal: AbortSignal | null,
-		data: { beforeId?: string; limit?: number }
-	) {
+	async findManyFiles(data: { beforeId?: string; limit?: number }, abortSignal?: AbortSignal) {
 		let query = '';
 		if (data.beforeId) {
 			if (query) {
@@ -893,7 +941,10 @@ export class HyperbaseToken {
 		this.#_data = token;
 	}
 
-	async update(data: { name?: string; allowAnonymous?: boolean; expiredAt: string | null }) {
+	async update(
+		data: { name?: string; allowAnonymous?: boolean; expiredAt: string | null },
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api('', {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -903,7 +954,8 @@ export class HyperbaseToken {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		this.#_data = res.data;
@@ -911,20 +963,24 @@ export class HyperbaseToken {
 		return res.data;
 	}
 
-	async delete() {
+	async delete(abortSignal?: AbortSignal) {
 		await this.#api('', {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async insertOneCollectionRule(data: {
-		id: string;
-		findOne: string;
-		findMany: string;
-		insertOne: boolean;
-		updateOne: string;
-		deleteOne: string;
-	}) {
+	async insertOneCollectionRule(
+		data: {
+			id: string;
+			findOne: string;
+			findMany: string;
+			insertOne: boolean;
+			updateOne: string;
+			deleteOne: string;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/collection_rule`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -937,20 +993,24 @@ export class HyperbaseToken {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async insertOneBucketRule(data: {
-		id: string;
-		findOne: string;
-		findMany: string;
-		insertOne: boolean;
-		updateOne: string;
-		deleteOne: string;
-	}) {
+	async insertOneBucketRule(
+		data: {
+			id: string;
+			findOne: string;
+			findMany: string;
+			insertOne: boolean;
+			updateOne: string;
+			deleteOne: string;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/bucket_rule`, {
 			method: 'POST',
 			body: JSON.stringify({
@@ -963,36 +1023,42 @@ export class HyperbaseToken {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async findOneCollectionRule(data: { id: string }) {
+	async findOneCollectionRule(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/collection_rule/${data.id}`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async findOneBucketRule(data: { id: string }) {
+	async findOneBucketRule(data: { id: string }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/bucket_rule/${data.id}`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async updateOneCollectionRule(data: {
-		id: string;
-		findOne?: string;
-		findMany?: string;
-		insertOne?: boolean;
-		updateOne?: string;
-		deleteOne?: string;
-	}) {
+	async updateOneCollectionRule(
+		data: {
+			id: string;
+			findOne?: string;
+			findMany?: string;
+			insertOne?: boolean;
+			updateOne?: string;
+			deleteOne?: string;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/collection_rule/${data.id}`, {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -1004,20 +1070,24 @@ export class HyperbaseToken {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async updateOneBucketRule(data: {
-		id: string;
-		findOne?: string;
-		findMany?: string;
-		insertOne?: boolean;
-		updateOne?: string;
-		deleteOne?: string;
-	}) {
+	async updateOneBucketRule(
+		data: {
+			id: string;
+			findOne?: string;
+			findMany?: string;
+			insertOne?: boolean;
+			updateOne?: string;
+			deleteOne?: string;
+		},
+		abortSignal?: AbortSignal
+	) {
 		const res = await this.#api(`/bucket_rule/${data.id}`, {
 			method: 'PATCH',
 			body: JSON.stringify({
@@ -1029,35 +1099,40 @@ export class HyperbaseToken {
 			}),
 			headers: {
 				'content-type': 'application/json'
-			}
+			},
+			signal: abortSignal
 		});
 
 		return res.data;
 	}
 
-	async deleteOneCollectionRule(data: { id: string }) {
+	async deleteOneCollectionRule(data: { id: string }, abortSignal?: AbortSignal) {
 		await this.#api(`/collection_rule/${data.id}`, {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async deleteOneBucketRule(data: { id: string }) {
+	async deleteOneBucketRule(data: { id: string }, abortSignal?: AbortSignal) {
 		await this.#api(`/bucket_rule/${data.id}`, {
-			method: 'DELETE'
+			method: 'DELETE',
+			signal: abortSignal
 		});
 	}
 
-	async findManyCollectionRules() {
+	async findManyCollectionRules(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/collection_rules`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res;
 	}
 
-	async findManyBucketRules() {
+	async findManyBucketRules(abortSignal?: AbortSignal) {
 		const res = await this.#api(`/bucket_rules`, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res;
@@ -1090,7 +1165,7 @@ export class HyperbaseLog {
 		this.#_hyperbaseProject = hyperbaseProject;
 	}
 
-	async findManyLogs(data: { beforeId?: string; limit?: number }) {
+	async findManyLogs(data: { beforeId?: string; limit?: number }, abortSignal?: AbortSignal) {
 		let query = '';
 		if (data.beforeId) {
 			if (query) {
@@ -1109,7 +1184,8 @@ export class HyperbaseLog {
 			query += `limit=${data.limit}`;
 		}
 		const res = await this.#api(query, {
-			method: 'GET'
+			method: 'GET',
+			signal: abortSignal
 		});
 
 		return res;

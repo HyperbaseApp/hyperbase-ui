@@ -432,7 +432,7 @@
 				expiredAt = convertDatetimeLocalToTimestamp(tokenData.expiredAt);
 			}
 
-			const hyperbaseToken = await hyperbaseProject.getToken(null, { id: tokenData.id });
+			const hyperbaseToken = await hyperbaseProject.getToken({ id: tokenData.id });
 			await hyperbaseToken.update({
 				name: tokenData.name.trim(),
 				allowAnonymous: tokenData.allowAnonymous,
@@ -455,7 +455,7 @@
 		try {
 			isLoadingRemoveToken = true;
 
-			const hyperbaseToken = await hyperbaseProject.getToken(null, { id: id });
+			const hyperbaseToken = await hyperbaseProject.getToken({ id: id });
 			await hyperbaseToken.delete();
 			selectedToken = undefined;
 			unshowModalRemoveToken(true);
@@ -517,9 +517,10 @@
 				isLoadingRefreshRules = true;
 
 				abortRefreshRuleController = new AbortController();
-				hyperbaseToken = await hyperbaseProject.getToken(abortRefreshRuleController.signal, {
-					id: selectedToken.id
-				});
+				hyperbaseToken = await hyperbaseProject.getToken(
+					{ id: selectedToken.id },
+					abortRefreshRuleController.signal
+				);
 				const [collectionRulesData, bucketRulesData]: [
 					{
 						pagination: {
