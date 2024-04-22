@@ -1,6 +1,9 @@
 import type { SchemaField } from '$lib/types/collection';
 
 export function formatSchemaFieldData(data: { [field: string]: any }, schemaFields: SchemaField) {
+	delete data._id;
+	delete data._updated_at;
+
 	for (const [field, props] of Object.entries(schemaFields)) {
 		if (props.required || props.indexed || props.auth_column) {
 			if (!data[field]) {

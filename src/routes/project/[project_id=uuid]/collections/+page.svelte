@@ -830,7 +830,6 @@
 			isLoadingEditRecord = true;
 
 			const editData = { ...showRecordOpt.editData };
-			delete editData._id;
 			const { data, error } = formatSchemaFieldData(
 				editData,
 				selectedCollection.data.schema_fields
