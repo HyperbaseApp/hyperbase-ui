@@ -27,5 +27,12 @@ module.exports = {
 				parser: '@typescript-eslint/parser'
 			}
 		}
-	]
+	],
+	rules: {
+		'no-console': ['error', { allow: ['error'] }],
+		'@typescript-eslint/no-unused-vars': [
+			'error',
+			{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+		] // Allow unused variables starting with underscore for private usage
+	}
 };

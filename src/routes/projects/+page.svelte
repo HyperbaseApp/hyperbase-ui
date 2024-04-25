@@ -44,13 +44,10 @@
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
 			projects = projectsData;
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -65,13 +62,10 @@
 			addProjectData = {
 				name: ''
 			};
-
-			isLoadingAddProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddProject = false;
 		}
 	}
 

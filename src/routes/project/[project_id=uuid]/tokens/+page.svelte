@@ -174,7 +174,6 @@
 	};
 
 	onMount(() => {
-		console.log('HERE');
 		(async () => {
 			try {
 				const projectId = $page.params.project_id;
@@ -182,13 +181,10 @@
 				refreshCollections();
 				refreshBuckets();
 				refreshTokens();
-
-				isLoadingInit = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingInit = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingInit = false;
 			}
 		})();
 	});
@@ -201,13 +197,10 @@
 			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
-
-			isLoadingEditProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditProject = false;
 		}
 	}
 
@@ -230,13 +223,10 @@
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingTransferProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingTransferProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingTransferProject = false;
 		}
 	}
 
@@ -260,13 +250,10 @@
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingDuplicateProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingDuplicateProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingDuplicateProject = false;
 		}
 	}
 
@@ -287,13 +274,10 @@
 			await hyperbaseProject.delete();
 			toast.success('Successfully removed the project');
 			goto(`${base}/projects`);
-
-			isLoadingRemoveProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveProject = false;
 		}
 	}
 
@@ -344,13 +328,10 @@
 			});
 			if (selectedToken?.id) selectedToken = tokensData.find((t) => t.id === selectedToken?.id);
 			tokens = tokensData;
-
-			isLoadingRefreshTokens = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshTokens = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshTokens = false;
 		}
 	}
 
@@ -413,13 +394,10 @@
 			unshowModalToken(true);
 			toast.success('Successfully added a token');
 			await refreshTokens();
-
-			isLoadingAddEditToken = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditToken = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditToken = false;
 		}
 	}
 
@@ -441,13 +419,10 @@
 			unshowModalToken(true);
 			toast.success('Successfully updated the token');
 			refreshTokens();
-
-			isLoadingAddEditToken = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditToken = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditToken = false;
 		}
 	}
 
@@ -461,13 +436,10 @@
 			unshowModalRemoveToken(true);
 			toast.success('Successfully removed the token');
 			refreshTokens();
-
-			isLoadingRemoveToken = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveToken = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveToken = false;
 		}
 	}
 
@@ -546,13 +518,10 @@
 					collection: collectionRulesData,
 					bucket: bucketRulesData
 				};
-
-				isLoadingRefreshRules = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingRefreshRules = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingRefreshRules = false;
 			}
 		} else {
 			rules = {
@@ -722,13 +691,10 @@
 			unshowAddRule(true);
 			toast.success('Successfully added a rule');
 			refreshRules();
-
-			isLoadingAddRule = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddRule = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddRule = false;
 		}
 	}
 
@@ -761,13 +727,10 @@
 			unshowRuleOpt(true);
 			toast.success('Successfully updated the rule');
 			refreshRules();
-
-			isLoadingEditRule = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditRule = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditRule = false;
 		}
 	}
 
@@ -784,13 +747,10 @@
 			unshowRuleOpt(true);
 			toast.success('Successfully removed the bucket');
 			refreshRules();
-
-			isLoadingRemoveRule = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveRule = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveRule = false;
 		}
 	}
 
@@ -1236,10 +1196,10 @@
 														{rule.id}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{rule.created_at}
+														{new Date(rule.created_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{rule.updated_at}
+														{new Date(rule.updated_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
 														{collections.find((c) => c.id === rule.collection_id)?.name}
@@ -1406,10 +1366,10 @@
 														{rule.id}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{rule.created_at}
+														{new Date(rule.created_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{rule.updated_at}
+														{new Date(rule.updated_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
 														{buckets.find((b) => b.id === rule.bucket_id)?.name}

@@ -19,8 +19,10 @@ export default function formatFileSize(size: number) {
 			break;
 		case 3:
 			unit = 'GB';
+			break;
 		case 4:
 			unit = 'TB';
+			break;
 	}
 	let sizeStr = size.toString();
 	for (let x = 0; x <= 3; ++x) {

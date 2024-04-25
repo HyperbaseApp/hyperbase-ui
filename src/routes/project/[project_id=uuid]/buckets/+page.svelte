@@ -149,13 +149,10 @@
 				const projectId = $page.params.project_id;
 				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				refreshBuckets();
-
-				isLoadingInit = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingInit = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingInit = false;
 			}
 		})();
 	});
@@ -168,13 +165,10 @@
 			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
-
-			isLoadingEditProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditProject = false;
 		}
 	}
 
@@ -197,13 +191,10 @@
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingTransferProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingTransferProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingTransferProject = false;
 		}
 	}
 
@@ -227,13 +218,10 @@
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingDuplicateProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingDuplicateProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingDuplicateProject = false;
 		}
 	}
 
@@ -254,13 +242,10 @@
 			await hyperbaseProject.delete();
 			toast.success('Successfully removed the project');
 			goto(`${base}/projects`);
-
-			isLoadingRemoveProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveProject = false;
 		}
 	}
 
@@ -282,13 +267,10 @@
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
 			buckets = bucketsData;
-
-			isLoadingRefreshBuckets = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshBuckets = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshBuckets = false;
 		}
 	}
 
@@ -380,13 +362,10 @@
 
 			selectedBucket = hyperbaseBucket;
 			await refreshFiles(abortRefreshSelectedBucketController.signal);
-
-			isLoadingRefreshSelectedBucket = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshSelectedBucket = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshSelectedBucket = false;
 		}
 	}
 
@@ -401,13 +380,10 @@
 			unshowModalBucket(true);
 			toast.success('Successfully added a bucket');
 			await refreshBuckets();
-
-			isLoadingAddEditBucket = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditBucket = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditBucket = false;
 		}
 	}
 
@@ -432,13 +408,10 @@
 			if (bucketData.id === selectedBucket?.data.id) {
 				selectedBucket = await hyperbaseProject.getBucket({ id: selectedBucket.data.id });
 			}
-
-			isLoadingAddEditBucket = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditBucket = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditBucket = false;
 		}
 	}
 
@@ -457,13 +430,10 @@
 			};
 			selectedBucket = undefined;
 			refreshBuckets();
-
-			isLoadingRemoveBucket = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveBucket = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveBucket = false;
 		}
 	}
 
@@ -512,13 +482,10 @@
 					data: TFile[];
 				} = await selectedBucket.findManyFiles({ beforeId: undefined, limit: 15 }, abortSignal);
 				files = filesData;
-
-				isLoadingRefreshFiles = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingRefreshFiles = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingRefreshFiles = false;
 			}
 		} else {
 			files = {
@@ -548,13 +515,10 @@
 				},
 				data: [...files.data, ...filesData.data]
 			};
-
-			isLoadingLoadMoreFiles = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingLoadMoreFiles = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingLoadMoreFiles = false;
 		}
 	}
 
@@ -632,13 +596,10 @@
 			unshowFileOpt(true);
 			toast.success('Successfully updated the file');
 			refreshFiles();
-
-			isLoadingEditFile = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditFile = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditFile = false;
 		}
 	}
 
@@ -652,13 +613,10 @@
 			unshowFileOpt(true);
 			toast.success('Successfully removed the file');
 			refreshFiles();
-
-			isLoadingRemoveFile = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveFile = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveFile = false;
 		}
 	}
 
@@ -992,10 +950,10 @@
 														{/if}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{file.created_at}
+														{new Date(file.created_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
-														{file.updated_at}
+														{new Date(file.updated_at).toLocaleString()}
 													</td>
 													<td class="py-1 px-2 text-sm">
 														{#if showFileOpt.id === file.id && showFileOpt.action === 'edit'}

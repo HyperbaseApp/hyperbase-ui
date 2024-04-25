@@ -81,12 +81,10 @@
 		try {
 			isLoadingChangeHyperbaseServer = true;
 			hyperbase.changeServer(changeHyperbaseBaseUrl.baseUrl, changeHyperbaseBaseUrl.baseWsUrl);
-			isLoadingChangeHyperbaseServer = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingChangeHyperbaseServer = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingChangeHyperbaseServer = false;
 		}
 	}
 
@@ -94,12 +92,10 @@
 		try {
 			isLoadingRemoveAccount = true;
 			await hyperbase.adminDelete();
-			isLoadingRemoveAccount = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveAccount = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveAccount = false;
 		}
 	}
 

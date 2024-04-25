@@ -44,7 +44,7 @@
 	let collections: Collection[] = [];
 	let records: {
 		pagination: Pagination;
-		data: { [field: string]: any }[];
+		data: { [field: string]: unknown }[];
 	} = {
 		pagination: {
 			count: 0,
@@ -123,7 +123,7 @@
 		action: 'none' | 'option' | 'remove' | 'edit';
 		optPosition: 'top' | 'bottom';
 		editData: {
-			[field: string]: any;
+			[field: string]: unknown;
 		};
 	} = {
 		id: '',
@@ -133,7 +133,7 @@
 	};
 	let showAddRecordData: {
 		show: boolean;
-		data: { [field: string]: any };
+		data: { [field: string]: unknown };
 	} = {
 		show: false,
 		data: {}
@@ -146,13 +146,10 @@
 				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				refreshCollections();
 				supportedSchemaFields = await hyperbase.getInfoAllSupportedSchemaFields();
-
-				isLoadingInit = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingInit = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingInit = false;
 			}
 		})();
 	});
@@ -165,13 +162,10 @@
 			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
-
-			isLoadingEditProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditProject = false;
 		}
 	}
 
@@ -194,13 +188,10 @@
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingTransferProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingTransferProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingTransferProject = false;
 		}
 	}
 
@@ -224,13 +215,10 @@
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingDuplicateProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingDuplicateProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingDuplicateProject = false;
 		}
 	}
 
@@ -251,13 +239,10 @@
 			await hyperbaseProject.delete();
 			toast.success('Successfully removed the project');
 			goto(`${base}/projects`);
-
-			isLoadingRemoveProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveProject = false;
 		}
 	}
 
@@ -279,13 +264,10 @@
 				return lowerA > lowerB ? 1 : lowerA === lowerB ? 0 : -1;
 			});
 			collections = collectionsData;
-
-			isLoadingRefreshCollections = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshCollections = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshCollections = false;
 		}
 	}
 
@@ -341,13 +323,10 @@
 
 			selectedCollection = hyperbaseCollection;
 			await refreshRecords(abortSelectCollectionController.signal);
-
-			isLoadingRefreshSelectedCollection = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshSelectedCollection = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshSelectedCollection = false;
 		}
 	}
 
@@ -378,13 +357,10 @@
 			unshowModalCollection(true);
 			toast.success('Successfully added a collection');
 			await refreshCollections();
-
-			isLoadingAddEditCollection = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditCollection = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditCollection = false;
 		}
 	}
 
@@ -412,7 +388,6 @@
 			const hyperbaseCollection = await hyperbaseProject.getCollection({
 				id: collectionData.id
 			});
-			console.log(collectionData);
 			await hyperbaseCollection.update({
 				name: collectionData.name.trim(),
 				schemaFields,
@@ -425,21 +400,18 @@
 					name: collectionData.name.trim()
 				};
 			}
-			unshowModalCollection(true);
-			toast.success('Successfully updated the collection');
-			refreshCollections();
+			await refreshCollections();
 			if (collectionData.id === selectedCollection?.data.id) {
 				selectedCollection = await hyperbaseProject.getCollection({
 					id: selectedCollection.data.id
 				});
 			}
-
-			isLoadingAddEditCollection = false;
+			unshowModalCollection(true);
+			toast.success('Successfully updated the collection');
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddEditCollection = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddEditCollection = false;
 		}
 	}
 
@@ -450,21 +422,18 @@
 			const hyperbaseCollection = await hyperbaseProject.getCollection({ id: id });
 			await hyperbaseCollection.delete();
 			selectedCollection = undefined;
-			unshowModalRemoveCollection(true);
-			toast.success('Successfully removed the collection');
 			selectedCollectionData = {
 				id: '',
 				name: ''
 			};
 			selectedCollection = undefined;
-			refreshCollections();
-
-			isLoadingRemoveCollection = false;
+			await refreshCollections();
+			unshowModalRemoveCollection(true);
+			toast.success('Successfully removed the collection');
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveCollection = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveCollection = false;
 		}
 	}
 
@@ -605,7 +574,7 @@
 				const recordsData: {
 					pagination: Pagination;
 					data: {
-						[field: string]: any;
+						[field: string]: unknown;
 					}[];
 				} = await selectedCollection.findManyRecords(
 					{
@@ -635,7 +604,7 @@
 						switch (kind) {
 							case 'timestamp':
 								recordsData.data[i][field] = convertTimestampToDatetimeLocal(
-									recordsData.data[i][field]
+									recordsData.data[i][field] as string
 								);
 								break;
 							case 'json':
@@ -646,13 +615,10 @@
 				}
 
 				records = recordsData;
-
-				isLoadingRefreshRecords = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingRefreshRecords = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingRefreshRecords = false;
 			}
 		} else {
 			records = {
@@ -673,14 +639,14 @@
 			const recordsData: {
 				pagination: Pagination;
 				data: {
-					[field: string]: any;
+					[field: string]: unknown;
 				}[];
 			} = await selectedCollection.findManyRecords({
 				filters: [
 					{
 						field: '_id',
 						op: '<',
-						value: records.data.at(-1)!._id
+						value: records.data.at(-1)!._id as string
 					}
 				],
 				orders: [
@@ -707,7 +673,7 @@
 					switch (kind) {
 						case 'timestamp':
 							recordsData.data[i][field] = convertTimestampToDatetimeLocal(
-								recordsData.data[i][field]
+								recordsData.data[i][field] as string
 							);
 							break;
 						case 'json':
@@ -724,13 +690,10 @@
 				},
 				data: [...records.data, ...recordsData.data]
 			};
-
-			isLoadingLoadMoreRecords = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingLoadMoreRecords = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingLoadMoreRecords = false;
 		}
 	}
 
@@ -739,12 +702,12 @@
 			currentTarget: EventTarget & HTMLButtonElement;
 		},
 		record: {
-			[field: string]: any;
+			[field: string]: unknown;
 		}
 	) {
 		if (isLoadingEditRecord) return;
 
-		showRecordOpt.id = showRecordOpt.id === record._id ? '' : record._id;
+		showRecordOpt.id = showRecordOpt.id === record._id ? '' : (record._id as string);
 		if (showRecordOpt.id.length > 0) {
 			showRecordOpt.action = 'option';
 			showRecordOpt.editData = record;
@@ -813,13 +776,10 @@
 			unshowAddRecord(true);
 			toast.success('Successfully added a record');
 			refreshRecords();
-
-			isLoadingAddRecord = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingAddRecord = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingAddRecord = false;
 		}
 	}
 
@@ -846,13 +806,10 @@
 			unshowRecordOpt(true);
 			toast.success('Successfully updated the record');
 			refreshRecords();
-
-			isLoadingEditRecord = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditRecord = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditRecord = false;
 		}
 	}
 
@@ -866,13 +823,10 @@
 			unshowRecordOpt(true);
 			toast.success('Successfully removed the record');
 			refreshRecords();
-
-			isLoadingRemoveRecord = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveRecord = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveRecord = false;
 		}
 	}
 

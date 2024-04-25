@@ -72,13 +72,10 @@
 				hyperbaseProject = await hyperbase.getProject({ id: projectId });
 				hyperbaseLog = hyperbaseProject.getLog();
 				await refreshLogs();
-
-				isLoadingInit = false;
 			} catch (err) {
-				const code = errorHandler(err);
-				if (code === 0) {
-					isLoadingInit = false;
-				}
+				errorHandler(err);
+			} finally {
+				isLoadingInit = false;
 			}
 		})();
 	});
@@ -91,13 +88,10 @@
 			hyperbaseProject = await hyperbase.getProject({ id: showModalEditProject.id });
 			unshowModalEditProject(true);
 			toast.success('Successfully updated the project');
-
-			isLoadingEditProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingEditProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingEditProject = false;
 		}
 	}
 
@@ -120,13 +114,10 @@
 			unshowModalTransferProject(true);
 			toast.success('Successfully transfer the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingTransferProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingTransferProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingTransferProject = false;
 		}
 	}
 
@@ -150,13 +141,10 @@
 			unshowModalDuplicateProject(true);
 			toast.success('Successfully duplicate the project');
 			goto(`${base}/projects`, { replaceState: true });
-
-			isLoadingDuplicateProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingDuplicateProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingDuplicateProject = false;
 		}
 	}
 
@@ -177,13 +165,10 @@
 			await hyperbaseProject.delete();
 			toast.success('Successfully removed the project');
 			goto(`${base}/projects`);
-
-			isLoadingRemoveProject = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRemoveProject = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRemoveProject = false;
 		}
 	}
 
@@ -203,13 +188,10 @@
 				data: Log[];
 			} = await hyperbaseProject.getManyLogs({ beforeId: undefined, limit: 50 });
 			logs = logsData;
-
-			isLoadingRefreshLogs = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingRefreshLogs = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingRefreshLogs = false;
 		}
 	}
 
@@ -229,13 +211,10 @@
 				},
 				data: [...logs.data, ...logsData.data]
 			};
-
-			isLoadingLoadMoreLogs = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoadingLoadMoreLogs = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoadingLoadMoreLogs = false;
 		}
 	}
 

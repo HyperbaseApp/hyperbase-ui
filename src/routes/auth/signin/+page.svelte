@@ -34,13 +34,10 @@
 			});
 
 			localStorage.setItem('token', token!);
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 </script>

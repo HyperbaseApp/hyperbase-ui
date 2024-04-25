@@ -194,7 +194,7 @@ export default class Hyperbase {
 	}
 
 	async userSignIn(
-		data: { tokenId: string; token: string; collectionId: string; data: any },
+		data: { tokenId: string; token: string; collectionId: string; data: object },
 		abortSignal?: AbortSignal
 	) {
 		const res = await this.#api(`/auth/token-based`, {
@@ -640,7 +640,7 @@ export class HyperbaseCollection {
 		});
 	}
 
-	async insertOne(data: { object: { [field: string]: any } }, abortSignal?: AbortSignal) {
+	async insertOne(data: { object: object }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/record`, {
 			method: 'POST',
 			body: JSON.stringify(data.object),
@@ -662,10 +662,7 @@ export class HyperbaseCollection {
 		return res.data;
 	}
 
-	async updateOneRecord(
-		data: { id: string; object: { [field: string]: any } },
-		abortSignal?: AbortSignal
-	) {
+	async updateOneRecord(data: { id: string; object: object }, abortSignal?: AbortSignal) {
 		const res = await this.#api(`/record/${data.id}`, {
 			method: 'PATCH',
 			body: JSON.stringify(data.object),

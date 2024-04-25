@@ -41,13 +41,10 @@
 			});
 
 			toast.success('A verification code has been sent to your email');
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -60,13 +57,10 @@
 			toast.success('Successfully verify the account');
 
 			goto(`${base}/auth/signin`, { replaceState: true });
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 </script>

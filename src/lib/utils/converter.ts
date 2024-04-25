@@ -1,6 +1,9 @@
 import type { SchemaField } from '$lib/types/collection';
 
-export function formatSchemaFieldData(data: { [field: string]: any }, schemaFields: SchemaField) {
+export function formatSchemaFieldData(
+	data: { [field: string]: unknown },
+	schemaFields: SchemaField
+) {
 	delete data._id;
 	delete data._updated_at;
 
@@ -24,7 +27,11 @@ export function formatSchemaFieldData(data: { [field: string]: any }, schemaFiel
 
 		const props = schemaFields[field];
 
-		if (!value) {
+		if (value === '' && !props.required && props.kind !== 'string') {
+			data[field] = null;
+			continue;
+		} else if (props.kind === 'string' && value === String.raw`\null`) {
+			data[field] = null;
 			continue;
 		}
 
@@ -55,10 +62,20 @@ export function formatSchemaFieldData(data: { [field: string]: any }, schemaFiel
 				break;
 			case 'varint':
 			case 'decimal':
-			case 'string':
 			case 'uuid':
 			case 'date':
 			case 'time':
+				if (typeof value !== 'string') {
+					const v = String(value);
+					data[field] = v;
+				}
+				break;
+			case 'string':
+				if (value && typeof value !== 'string') {
+					const v = String(value);
+					data[field] = v;
+				}
+				break;
 			case 'json':
 				if (typeof value !== 'string') {
 					const v = JSON.stringify(value);
@@ -72,7 +89,7 @@ export function formatSchemaFieldData(data: { [field: string]: any }, schemaFiel
 					const v = String(value);
 					data[field] = v;
 				}
-				data[field] = convertDatetimeLocalToTimestamp(data[field]);
+				data[field] = convertDatetimeLocalToTimestamp(data[field] as string);
 				break;
 		}
 	}

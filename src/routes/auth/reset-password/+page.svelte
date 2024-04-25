@@ -26,13 +26,10 @@
 			});
 
 			toast.success('A verification code has been sent to your email');
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -49,13 +46,10 @@
 			toast.success('Successfully reset the password');
 
 			goto(`${base}/auth/signin`, { replaceState: true });
-
-			isLoading = false;
 		} catch (err) {
-			const code = errorHandler(err);
-			if (code === 0) {
-				isLoading = false;
-			}
+			errorHandler(err);
+		} finally {
+			isLoading = false;
 		}
 	}
 </script>
