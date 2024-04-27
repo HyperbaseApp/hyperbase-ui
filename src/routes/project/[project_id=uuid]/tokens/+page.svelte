@@ -1044,13 +1044,15 @@
 								>
 									Switch to {rules.active === 'collection' ? 'bucket' : 'collection'} rule
 								</button>
-								<button
-									type="button"
-									on:click|stopPropagation={toggleAddRule}
-									class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
-								>
-									Insert {rules.active} rule
-								</button>
+								{#if rules.active === 'collection' ? rules.collection.data.length < collections.length : rules.bucket.data.length < buckets.length}
+									<button
+										type="button"
+										on:click|stopPropagation={toggleAddRule}
+										class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
+									>
+										Insert {rules.active} rule
+									</button>
+								{/if}
 							</div>
 							<div class="mt-2 flex-1 overflow-x-auto">
 								<table>
@@ -1088,7 +1090,7 @@
 																? 'border-black'
 																: 'border-red-500'}"
 														>
-															{#each collections as collection}
+															{#each collections.filter((c) => rules.collection.data.findIndex((cd) => cd.collection_id === c.id) === -1) as collection}
 																<option value={collection.id}>{collection.name}</option>
 															{/each}
 														</select>
@@ -1101,7 +1103,7 @@
 																? 'border-black'
 																: 'border-red-500'}"
 														>
-															{#each buckets as bucket}
+															{#each buckets.filter((c) => rules.bucket.data.findIndex((bd) => bd.bucket_id === c.id) === -1) as bucket}
 																<option value={bucket.id}>{bucket.name}</option>
 															{/each}
 														</select>
