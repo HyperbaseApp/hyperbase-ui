@@ -55,7 +55,40 @@
 		try {
 			isLoadingAddProject = true;
 
-			await hyperbase.createProject({ name: addProjectData.name.trim() });
+			const projectData = await hyperbase.createProject({ name: addProjectData.name.trim() });
+			const hyperbaseProject = await hyperbase.getProject({ id: projectData.id });
+			await Promise.all([
+				hyperbaseProject.createCollection({
+					name: 'Users',
+					schemaFields: {
+						email: {
+							kind: 'string',
+							required: true,
+							indexed: true,
+							unique: true,
+							auth_column: true,
+							hashed: false,
+							hidden: false
+						},
+						password: {
+							kind: 'string',
+							required: true,
+							indexed: false,
+							unique: false,
+							auth_column: true,
+							hashed: true,
+							hidden: true
+						}
+					},
+					optAuthColumnId: false,
+					optTTL: null
+				}),
+				hyperbaseProject.createToken({
+					name: 'App Token',
+					allowAnonymous: false,
+					expiredAt: null
+				})
+			]);
 
 			await refreshProjects();
 			showModalAddProject = false;

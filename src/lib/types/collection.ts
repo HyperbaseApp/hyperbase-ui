@@ -19,6 +19,7 @@ export interface SchemaFieldProps {
 	indexed: boolean;
 	unique: boolean;
 	auth_column: boolean;
+	hashed: boolean;
 	hidden: boolean;
 }
 

@@ -341,6 +341,7 @@
 				indexed: field.indexed,
 				unique: field.unique,
 				auth_column: field.authColumn,
+				hashed: field.hashed,
 				hidden: field.hidden
 			};
 		}
@@ -378,6 +379,7 @@
 				indexed: field.indexed,
 				unique: field.unique,
 				auth_column: field.authColumn,
+				hashed: field.hashed,
 				hidden: field.hidden
 			};
 		}
@@ -463,6 +465,7 @@
 				indexed: props.indexed,
 				unique: props.unique,
 				authColumn: props.auth_column,
+				hashed: props.hashed,
 				hidden: props.hidden,
 				_internal: {
 					invalidName: 'none',
@@ -497,6 +500,7 @@
 				indexed: false,
 				unique: false,
 				authColumn: false,
+				hashed: false,
 				hidden: false,
 				_internal: {
 					invalidName: 'none',
@@ -558,7 +562,7 @@
 	) {
 		showSchemaFieldOpt.idx = showSchemaFieldOpt.idx === idx ? -1 : idx;
 		if (showSchemaFieldOpt.idx >= 0) {
-			if (e.clientY + 300 > document.documentElement.clientHeight) {
+			if (e.clientY + 360 > document.documentElement.clientHeight) {
 				showSchemaFieldOpt.position = 'top';
 			} else {
 				showSchemaFieldOpt.position = 'bottom';
@@ -999,6 +1003,7 @@
 			indexed: boolean;
 			unique: boolean;
 			authColumn: boolean;
+			hashed: boolean;
 			hidden: boolean;
 			_internal: {
 				invalidName: 'none' | 'exists' | 'format';
@@ -1395,7 +1400,7 @@
 														{record._updated_at}
 													</td>
 													{#each Object.entries(selectedCollection.data.schema_fields) as [field, props]}
-														<td class="py-1 px-2 text-sm">
+														<td class="py-1 px-2 text-sm max-w-72 break-words">
 															{#if showRecordOpt.id === record._id && showRecordOpt.action === 'edit'}
 																{#if props.kind === 'boolean'}
 																	<div class="flex items-center gap-x-2">
@@ -2018,6 +2023,19 @@
 																{:else}
 																	<Square class="w-5 h-5" />
 																{/if} <span>Auth Column</span>
+															</button>
+															<button
+																type="button"
+																on:click|stopPropagation={() =>
+																	(collectionData.schemaFields[i].hashed =
+																		!collectionData.schemaFields[i].hashed)}
+																class="w-full py-2 px-2.5 flex items-center gap-x-2 hover:bg-neutral-100 rounded-lg"
+															>
+																{#if collectionData.schemaFields[i].hashed}
+																	<Checkbox class="w-5 h-5" />
+																{:else}
+																	<Square class="w-5 h-5" />
+																{/if} <span>Hashed</span>
 															</button>
 															<button
 																type="button"
