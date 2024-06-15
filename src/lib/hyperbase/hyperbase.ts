@@ -8,8 +8,8 @@ import { jwtDecode } from 'jwt-decode';
 import { writable } from 'svelte/store';
 
 export default class Hyperbase {
-	#_baseUrl = '';
-	#_baseWsUrl = '';
+	#_baseURL = '';
+	#_baseWsURL = '';
 	#_authToken?: string;
 
 	#_adminData?: Admin;
@@ -18,12 +18,12 @@ export default class Hyperbase {
 	#_authState = writable(AuthState.Unauthenticated);
 	#_isReady = writable(false);
 
-	get baseUrl() {
-		return this.#_baseUrl;
+	get baseURL() {
+		return this.#_baseURL;
 	}
 
-	get baseWsUrl() {
-		return this.#_baseWsUrl;
+	get baseWsURL() {
+		return this.#_baseWsURL;
 	}
 
 	get authToken() {
@@ -44,15 +44,15 @@ export default class Hyperbase {
 
 	async init() {
 		try {
-			const baseUrl = localStorage.getItem('base_url');
-			const baseWsUrl = localStorage.getItem('base_ws_url');
-			if (baseUrl && baseUrl !== this.#_baseUrl) {
-				this.#_baseUrl = baseUrl;
-				localStorage.setItem('base_url', baseUrl);
+			const baseURL = localStorage.getItem('base_url');
+			const baseWsURL = localStorage.getItem('base_ws_url');
+			if (baseURL && baseURL !== this.#_baseURL) {
+				this.#_baseURL = baseURL;
+				localStorage.setItem('base_url', baseURL);
 			}
-			if (baseWsUrl && baseWsUrl !== this.#_baseWsUrl) {
-				this.#_baseWsUrl = baseWsUrl;
-				localStorage.setItem('base_ws_url', baseWsUrl);
+			if (baseWsURL && baseWsURL !== this.#_baseWsURL) {
+				this.#_baseWsURL = baseWsURL;
+				localStorage.setItem('base_ws_url', baseWsURL);
 			}
 
 			const token = localStorage.getItem('token');
@@ -73,7 +73,7 @@ export default class Hyperbase {
 				}
 			}
 
-			return { baseUrl: this.#_baseUrl, baseWsUrl: this.#_baseWsUrl };
+			return { baseURL: this.#_baseURL, baseWsURL: this.#_baseWsURL };
 		} catch (err) {
 			this.#removeTokenStorage();
 			this.#_authState.set(AuthState.Unauthenticated);
@@ -83,15 +83,15 @@ export default class Hyperbase {
 		}
 	}
 
-	changeServerInternal(baseUrl: string, baseWsUrl: string) {
-		this.#_baseUrl = baseUrl;
-		this.#_baseWsUrl = baseWsUrl;
+	changeServerInternal(baseURL: string, baseWsURL: string) {
+		this.#_baseURL = baseURL;
+		this.#_baseWsURL = baseWsURL;
 	}
 
-	changeServer(baseUrl: string, baseWsUrl?: string) {
-		localStorage.setItem('base_url', baseUrl);
-		if (baseWsUrl) {
-			localStorage.setItem('base_ws_url', baseWsUrl);
+	changeServer(baseURL: string, baseWsURL?: string) {
+		localStorage.setItem('base_url', baseURL);
+		if (baseWsURL) {
+			localStorage.setItem('base_ws_url', baseWsURL);
 		}
 		location.reload();
 	}
@@ -299,7 +299,10 @@ export default class Hyperbase {
 
 	async health(abortSignal?: AbortSignal) {
 		try {
-			await this.#api('', { signal: abortSignal });
+			await this.#api('', {
+				method: 'GET',
+				signal: abortSignal
+			});
 			return true;
 		} catch (_) {
 			return false;
@@ -345,9 +348,9 @@ export default class Hyperbase {
 	}
 
 	async #api(input: string, init: RequestInit) {
-		const res = await fetch(`${this.#_baseUrl}/api/rest${input}`, init);
+		const res = await fetch(`${this.#_baseURL}/api/rest${input}`, { ...init, redirect: 'error' });
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;
@@ -572,17 +575,18 @@ export class HyperbaseProject {
 
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
-			`${this.#_hyperbase.baseUrl}/api/rest/project/${this.#_data.id}${input}`,
+			`${this.#_hyperbase.baseURL}/api/rest/project/${this.#_data.id}${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
 					authorization: `Bearer ${this.#_hyperbase.authToken}`
-				}
+				},
+				redirect: 'error'
 			}
 		);
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;
@@ -733,7 +737,7 @@ export class HyperbaseCollection {
 		}
 
 		this.#_socket = new WebSocket(
-			`${this.#_hyperbaseProject.hyperbase.baseWsUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
+			`${this.#_hyperbaseProject.hyperbase.baseWsURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
 		);
 
 		if (onOpenCallback) {
@@ -766,17 +770,18 @@ export class HyperbaseCollection {
 
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/collection/${this.#_data.id}${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
 					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
-				}
+				},
+				redirect: 'error'
 			}
 		);
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;
@@ -898,8 +903,8 @@ export class HyperbaseBucket {
 		return res;
 	}
 
-	getDownloadFileUrl(id: string, pub: boolean) {
-		let url = `${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/bucket/${this.#_data.id}/file/${id}`;
+	getDownloadFileURL(id: string, pub: boolean) {
+		let url = `${this.#_hyperbaseProject.hyperbase.baseURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/bucket/${this.#_data.id}/file/${id}`;
 		if (!pub) {
 			url += `?token=${this.#_hyperbaseProject.hyperbase.authToken}`;
 		}
@@ -908,17 +913,18 @@ export class HyperbaseBucket {
 
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/bucket/${this.#_data.id}${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/bucket/${this.#_data.id}${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
 					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
-				}
+				},
+				redirect: 'error'
 			}
 		);
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;
@@ -1137,17 +1143,18 @@ export class HyperbaseToken {
 
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/token/${this.#_data.id}${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/token/${this.#_data.id}${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
 					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
-				}
+				},
+				redirect: 'error'
 			}
 		);
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;
@@ -1205,7 +1212,7 @@ export class HyperbaseLog {
 		}
 
 		this.#_socket = new WebSocket(
-			`${this.#_hyperbaseProject.hyperbase.baseWsUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
+			`${this.#_hyperbaseProject.hyperbase.baseWsURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs/subscribe?token=${this.#_hyperbaseProject.hyperbase.authToken}`
 		);
 
 		if (onOpenCallback) {
@@ -1238,17 +1245,18 @@ export class HyperbaseLog {
 
 	async #api(input: string, init: RequestInit) {
 		const res = await fetch(
-			`${this.#_hyperbaseProject.hyperbase.baseUrl}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs${input}`,
+			`${this.#_hyperbaseProject.hyperbase.baseURL}/api/rest/project/${this.#_hyperbaseProject.data.id}/logs${input}`,
 			{
 				...init,
 				headers: {
 					...init.headers,
 					authorization: `Bearer ${this.#_hyperbaseProject.hyperbase.authToken}`
-				}
+				},
+				redirect: 'error'
 			}
 		);
 		const resJson = await res.json();
-		if (res.status.toString()[0] != '2') {
+		if (Math.floor(res.status / 100) !== 2) {
 			throw resJson.error;
 		}
 		return resJson;

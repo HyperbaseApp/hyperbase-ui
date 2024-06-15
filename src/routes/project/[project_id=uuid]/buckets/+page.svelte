@@ -1023,7 +1023,7 @@
 															{:else}
 																<div class="w-fit mx-auto flex gap-x-2">
 																	<a
-																		href={selectedBucket.getDownloadFileUrl(file.id, file.public)}
+																		href={selectedBucket.getDownloadFileURL(file.id, file.public)}
 																		target="_blank"
 																	>
 																		<CloudDownload class="w-5 h-5" />

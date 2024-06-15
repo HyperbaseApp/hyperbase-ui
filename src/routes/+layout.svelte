@@ -16,21 +16,16 @@
 	import Warning from '$lib/components/icon/Warning.svelte';
 	import '../app.css';
 
-	let hyperbaseBaseUrl: string = '';
-	let hyperbaseBaseWsUrl: string | undefined = '';
-
 	const hyperbase = new Hyperbase();
 	const isReady = hyperbase.isReady;
 	const authState = hyperbase.authState;
 
-	let changeHyperbaseBaseUrl: {
+	let changeHyperbaseBaseURL: {
 		show: boolean;
-		baseUrl: string;
-		baseWsUrl: string;
+		baseURL: string;
 	} = {
 		show: false,
-		baseUrl: hyperbaseBaseUrl,
-		baseWsUrl: hyperbaseBaseWsUrl
+		baseURL: ''
 	};
 	let removeAccountEmail = '';
 	let isShown = false;
@@ -46,11 +41,8 @@
 	onMount(() => {
 		(async () => {
 			try {
-				const { baseUrl, baseWsUrl } = await hyperbase.init();
-				hyperbaseBaseUrl = baseUrl;
-				changeHyperbaseBaseUrl.baseUrl = baseUrl;
-				hyperbaseBaseWsUrl = baseWsUrl;
-				changeHyperbaseBaseUrl.baseWsUrl = baseWsUrl ?? '';
+				const { baseURL } = await hyperbase.init();
+				changeHyperbaseBaseURL.baseURL = baseURL;
 			} catch (err) {
 				errorHandler(err);
 			}
@@ -60,7 +52,7 @@
 	$: if ($isReady) {
 		(async () => {
 			if (!(await hyperbase.health())) {
-				changeHyperbaseBaseUrl.show = true;
+				changeHyperbaseBaseURL.show = true;
 			}
 		})();
 	}
@@ -80,7 +72,19 @@
 	async function changeHyperbaseServer() {
 		try {
 			isLoadingChangeHyperbaseServer = true;
-			hyperbase.changeServer(changeHyperbaseBaseUrl.baseUrl, changeHyperbaseBaseUrl.baseWsUrl);
+			const baseURLSplit = changeHyperbaseBaseURL.baseURL.split('://');
+			if (baseURLSplit.length !== 2) {
+				throw 'Invalid base URL';
+			}
+			const useSecureProtocol = baseURLSplit[0].at(-1) === 's';
+			let webSocketProtocol = 'ws';
+			if (useSecureProtocol) {
+				webSocketProtocol += 's';
+			}
+			hyperbase.changeServer(
+				changeHyperbaseBaseURL.baseURL,
+				`${webSocketProtocol}://${baseURLSplit[1]}`
+			);
 		} catch (err) {
 			errorHandler(err);
 		} finally {
@@ -103,15 +107,14 @@
 		hyperbase.signOut();
 	}
 
-	function toggleChangeHyperbaseBaseUrl() {
-		if (changeHyperbaseBaseUrl.show) {
-			changeHyperbaseBaseUrl = {
+	function toggleChangeHyperbaseBaseURL() {
+		if (changeHyperbaseBaseURL.show) {
+			changeHyperbaseBaseURL = {
 				show: false,
-				baseUrl: hyperbaseBaseUrl,
-				baseWsUrl: hyperbaseBaseWsUrl ?? ''
+				baseURL: hyperbase.baseURL
 			};
 		} else {
-			changeHyperbaseBaseUrl.show = true;
+			changeHyperbaseBaseURL.show = true;
 		}
 	}
 
@@ -158,7 +161,7 @@
 					{/if}
 					<button
 						type="button"
-						on:click|preventDefault={toggleChangeHyperbaseBaseUrl}
+						on:click|preventDefault={toggleChangeHyperbaseBaseURL}
 						class="ml-auto"
 					>
 						<Settings class="w-6 h-6" />
@@ -170,7 +173,7 @@
 			{:else}
 				<button
 					type="button"
-					on:click|preventDefault={toggleChangeHyperbaseBaseUrl}
+					on:click|preventDefault={toggleChangeHyperbaseBaseURL}
 					class="ml-auto"
 				>
 					<Settings class="w-6 h-6" />
@@ -178,11 +181,11 @@
 			{/if}
 		</div>
 		<slot />
-		{#if changeHyperbaseBaseUrl.show}
+		{#if changeHyperbaseBaseURL.show}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<div
-				on:click|stopPropagation={toggleChangeHyperbaseBaseUrl}
+				on:click|stopPropagation={toggleChangeHyperbaseBaseURL}
 				class="fixed z-20 w-screen h-screen p-4 flex items-center justify-center bg-black/20"
 			>
 				<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
@@ -197,14 +200,7 @@
 								label="Base URL"
 								required
 								autocomplete={false}
-								bind:value={changeHyperbaseBaseUrl.baseUrl}
-							/>
-							<Input
-								id="base_ws_url"
-								type="text"
-								label="Base Websocket URL"
-								autocomplete={false}
-								bind:value={changeHyperbaseBaseUrl.baseWsUrl}
+								bind:value={changeHyperbaseBaseURL.baseURL}
 							/>
 							<div class="flex gap-x-2">
 								<Button
@@ -214,7 +210,7 @@
 									height="h-10"
 									on:click={(e) => {
 										e.stopPropagation();
-										toggleChangeHyperbaseBaseUrl();
+										toggleChangeHyperbaseBaseURL();
 									}}
 								>
 									Cancel

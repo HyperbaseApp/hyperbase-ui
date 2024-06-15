@@ -1242,7 +1242,7 @@
 										on:click|stopPropagation={toggleAddRecord}
 										class="block w-fit px-4 py-1 border-2 border-black hover:bg-gray-300 rounded font-bold text-sm"
 									>
-										Insert row
+										Insert a record
 									</button>
 									<button
 										type="button"
@@ -1831,7 +1831,7 @@
 						<Warning class="w-8 h-8 text-red-500" />
 						<p class="text-red-500">This action cannot be undone.</p>
 					</div>
-					<p>Are you sure you want to delete the selected row?</p>
+					<p>Are you sure you want to delete the selected record?</p>
 					<div class="flex gap-x-2">
 						<Button
 							type="button"
@@ -2022,7 +2022,7 @@
 																	<Checkbox class="w-5 h-5" />
 																{:else}
 																	<Square class="w-5 h-5" />
-																{/if} <span>Auth Column</span>
+																{/if} <span>Auth Field</span>
 															</button>
 															<button
 																type="button"

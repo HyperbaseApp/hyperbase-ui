@@ -1811,14 +1811,14 @@
 		>
 			<div on:click={(e) => e.stopPropagation()} class="w-full max-w-96 p-8 bg-white rounded-xl">
 				<div>
-					<p class="font-bold text-center text-2xl">Remove Record</p>
+					<p class="font-bold text-center text-2xl">Remove Token</p>
 				</div>
 				<div class="mt-6 space-y-6">
 					<div class="flex items-center gap-x-2">
 						<Warning class="w-8 h-8 text-red-500" />
 						<p class="text-red-500">This action cannot be undone.</p>
 					</div>
-					<p>Are you sure you want to delete the selected row?</p>
+					<p>Are you sure you want to delete the selected token?</p>
 					<div class="flex gap-x-2">
 						<Button
 							type="button"
