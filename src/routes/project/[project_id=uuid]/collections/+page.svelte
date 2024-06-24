@@ -1888,7 +1888,7 @@
 							/>
 						</div>
 						<div class="mt-6 bg-gray-200 rounded">
-							<p class="pt-2 px-4 font-bold text-sm text-gray-600">Schema Fields</p>
+							<p class="pt-2 px-4 font-bold text-sm text-gray-600">Fields Schema</p>
 							<div class="pt-2 px-4 space-y-2">
 								<table class="w-full text-sm">
 									<thead>
@@ -1928,9 +1928,9 @@
 														bind:value={collectionData.schemaFields[i].name}
 														on:input={() => validateSchemaField(i)}
 														title={collectionData.schemaFields[i]._internal.invalidName === 'exists'
-															? 'The schema field already exists.'
+															? 'The field schema already exists.'
 															: collectionData.schemaFields[i]._internal.invalidName === 'format'
-																? 'Incorrect schema field format.'
+																? 'Incorrect field schema format.'
 																: undefined}
 														class="w-full px-1 border bg-transparent outline-none {collectionData
 															.schemaFields[i]._internal.invalidName === 'none'
@@ -1944,7 +1944,7 @@
 														on:change={() =>
 															(collectionData.schemaFields[i]._internal.invalidKind = false)}
 														title={collectionData.schemaFields[i]._internal.invalidKind
-															? 'Incorrect schema field type'
+															? 'Incorrect field schema type'
 															: undefined}
 														class="border bg-transparent outline-none {collectionData.schemaFields[
 															i
