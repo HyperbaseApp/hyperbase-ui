@@ -61,7 +61,7 @@
 				hyperbaseProject.createCollection({
 					name: 'Users',
 					schemaFields: {
-						email: {
+						username: {
 							kind: 'string',
 							required: true,
 							indexed: true,
