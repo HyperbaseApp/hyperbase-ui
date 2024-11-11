@@ -1109,7 +1109,7 @@
 						</button>
 					</div>
 				</div>
-				<div class="border-b" />
+				<div class="border-b"></div>
 				<div class="min-h-0 flex-1 flex items-stretch">
 					<div class="border-r">
 						<div>
@@ -1153,24 +1153,29 @@
 								<div class="h-full overflow-y-auto">
 									{#each collections as collection}
 										<div class="relative">
-											<button
-												type="button"
-												on:click|stopPropagation={() => selectCollection(collection)}
+											<div
 												title={collection.name}
-												class="w-full py-1 px-2 flex items-center justify-between {selectedCollectionData.id ===
+												class="w-full flex items-center justify-between {selectedCollectionData.id ===
 												collection.id
 													? 'bg-neutral-200'
-													: 'hover:bg-neutral-100'} text-sm text-left rounded"
+													: 'hover:bg-neutral-100'} text-sm rounded"
 											>
-												<span class="truncate">{collection.name}</span>
+												<button
+													type="button"
+													on:click|stopPropagation={() => selectCollection(collection)}
+													class="py-1 px-2 flex-1 text-left"
+												>
+													<span class="truncate">{collection.name}</span>
+												</button>
 												<button
 													type="button"
 													on:click|stopPropagation={(e) =>
 														toggleShowCollectionOpt(e, collection.id)}
+													class="py-1 px-2"
 												>
-													<EllipsisHorizontal class="w-4 h-4" /></button
-												>
-											</button>
+													<EllipsisHorizontal class="w-4 h-4" />
+												</button>
+											</div>
 											{#if showCollectionOpt.id === collection.id}
 												<div
 													class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
@@ -1255,7 +1260,7 @@
 												: listenChangeRecordState === 'error'
 													? 'bg-yellow-500'
 													: 'bg-red-500'}"
-										/>
+										></div>
 										Realtime
 									</button>
 								</div>

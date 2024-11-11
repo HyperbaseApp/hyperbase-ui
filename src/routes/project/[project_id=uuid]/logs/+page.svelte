@@ -359,7 +359,7 @@
 						</button>
 					</div>
 				</div>
-				<div class="border-b" />
+				<div class="border-b"></div>
 				<div class="min-h-0 flex-1 flex items-stretch">
 					<div class="border-r">
 						<div>
@@ -408,7 +408,7 @@
 									: listenChangeLogState === 'error'
 										? 'bg-yellow-500'
 										: 'bg-red-500'}"
-							/>
+							></div>
 							Realtime
 						</button>
 					</div>

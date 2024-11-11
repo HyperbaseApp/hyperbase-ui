@@ -774,7 +774,7 @@
 						</button>
 					</div>
 				</div>
-				<div class="border-b" />
+				<div class="border-b"></div>
 				<div class="min-h-0 flex-1 flex items-stretch">
 					<div class="border-r">
 						<div>
@@ -818,23 +818,28 @@
 								<div class="h-full overflow-y-auto">
 									{#each buckets as bucket}
 										<div class="relative">
-											<button
-												type="button"
-												on:click|stopPropagation={() => selectBucket(bucket)}
+											<div
 												title={bucket.name}
-												class="w-full py-1 px-2 flex items-center justify-between {selectedBucketData.id ===
+												class="w-full flex items-center justify-between {selectedBucketData.id ===
 												bucket.id
 													? 'bg-neutral-200'
-													: 'hover:bg-neutral-100'} text-sm text-left rounded"
+													: 'hover:bg-neutral-100'} text-sm rounded"
 											>
-												<span class="truncate">{bucket.name}</span>
+												<button
+													type="button"
+													on:click|stopPropagation={() => selectBucket(bucket)}
+													class="py-1 px-2 flex-1 text-left"
+												>
+													<span class="truncate">{bucket.name}</span>
+												</button>
 												<button
 													type="button"
 													on:click|stopPropagation={(e) => toggleShowBucketOpt(e, bucket.id)}
+													class="py-1 px-2"
 												>
 													<EllipsisHorizontal class="w-4 h-4" /></button
 												>
-											</button>
+											</div>
 											{#if showBucketOpt.id === bucket.id}
 												<div
 													class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"

@@ -1,13 +1,13 @@
 FROM node:22 AS build
 WORKDIR /app
 COPY . .
-RUN npm i
+RUN npm i --legacy-peer-deps
 RUN npm run build
 
 FROM node:22 AS deps
 WORKDIR /app
 COPY --from=build /app/package.json .
-RUN npm i --omit=dev
+RUN npm i --omit=dev --legacy-peer-deps
 
 FROM gcr.io/distroless/nodejs22-debian12
 WORKDIR /app

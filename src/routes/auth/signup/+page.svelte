@@ -105,8 +105,6 @@
 					label="Code"
 					type="text"
 					required
-					pattern="[0-9]+"
-					inputTitle="The whole must be a number"
 					bind:value={code}
 				/>
 				<Button type="submit" loading={isLoading}>Verify Sign Up</Button>

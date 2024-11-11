@@ -905,7 +905,7 @@
 						</button>
 					</div>
 				</div>
-				<div class="border-b" />
+				<div class="border-b"></div>
 				<div class="min-h-0 flex-1 flex items-stretch">
 					<div class="border-r">
 						<div>
@@ -949,23 +949,28 @@
 								<div class="h-full overflow-y-auto">
 									{#each tokens as token}
 										<div class="relative">
-											<button
-												type="button"
-												on:click|stopPropagation={() => selectToken(token)}
+											<div
 												title={token.name}
-												class="w-full py-1 px-2 flex items-center justify-between {selectedToken?.id ===
+												class="w-full flex items-center justify-between {selectedToken?.id ===
 												token.id
 													? 'bg-neutral-200'
-													: 'hover:bg-neutral-100'} text-sm text-left rounded"
+													: 'hover:bg-neutral-100'} text-sm rounded"
 											>
-												<span class="truncate">{token.name}</span>
+												<button
+													on:click|stopPropagation={() => selectToken(token)}
+													type="button"
+													class="py-1 px-2 flex-1 text-left"
+												>
+													<span class="truncate">{token.name}</span>
+												</button>
 												<button
 													type="button"
 													on:click|stopPropagation={(e) => toggleShowTokenOpt(e, token.id)}
+													class="py-1 px-2"
 												>
 													<EllipsisHorizontal class="w-4 h-4" /></button
 												>
-											</button>
+											</div>
 											{#if showTokenOpt.id === token.id}
 												<div
 													class="p-2 absolute z-10 right-0 border bg-white rounded-xl shadow-sm text-sm"
