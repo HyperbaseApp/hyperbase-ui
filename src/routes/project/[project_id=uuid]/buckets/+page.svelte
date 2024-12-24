@@ -828,7 +828,7 @@
 												<button
 													type="button"
 													on:click|stopPropagation={() => selectBucket(bucket)}
-													class="py-1 px-2 flex-1 text-left"
+													class="py-1 px-2 flex-1 text-left truncate"
 												>
 													<span class="truncate">{bucket.name}</span>
 												</button>

@@ -1163,7 +1163,7 @@
 												<button
 													type="button"
 													on:click|stopPropagation={() => selectCollection(collection)}
-													class="py-1 px-2 flex-1 text-left"
+													class="py-1 px-2 flex-1 text-left truncate"
 												>
 													<span class="truncate">{collection.name}</span>
 												</button>

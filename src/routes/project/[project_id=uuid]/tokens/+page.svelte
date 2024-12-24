@@ -959,7 +959,7 @@
 												<button
 													on:click|stopPropagation={() => selectToken(token)}
 													type="button"
-													class="py-1 px-2 flex-1 text-left"
+													class="py-1 px-2 flex-1 text-left truncate"
 												>
 													<span class="truncate">{token.name}</span>
 												</button>
